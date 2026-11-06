@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contrail</title>
+<style>
+:root{--bg:#0B1029;--card:#141C42;--edge:#2B3670;--text:#fff;--soft:#DFE5FF;--dim:#A9B3D6;--accent:#FFD29A;--bad:#FF8A8A}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--accent)}
+header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--edge)}
+.bar{max-width:1040px;margin:0 auto;padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.brand{flex:1 1 auto;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}
+.brand b{font-size:22px}
+.muted{color:var(--dim);font-size:13px}
+.actions{display:flex;gap:8px;align-items:center}
+#count{color:var(--accent);font-size:14px}
+button{font:inherit;height:40px;padding:0 16px;border-radius:8px;border:1px solid var(--edge);background:transparent;color:var(--soft);cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--bg);font-weight:600}
+button:disabled{opacity:.45;cursor:default}
+.wrap{max-width:1040px;margin:0 auto;padding:20px 16px;display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+nav{flex:1 1 160px;max-width:200px;display:flex;flex-direction:column;gap:2px}
+nav a{padding:8px 12px;border-radius:6px;color:var(--soft);text-decoration:none}
+nav a:hover{background:var(--card)}
+main{flex:999 1 560px;min-width:0;display:flex;flex-direction:column;gap:18px}
+section{background:var(--card);border:1px solid var(--edge);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:14px}
+h2{margin:0;font-size:18px}
+.note{color:var(--dim);font-size:13px;font-weight:400;margin-left:8px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}
+div.f,label.f{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--soft)}
+label.c{display:flex;align-items:center;gap:10px;min-height:40px}
+input,select{font:inherit;height:40px;padding:0 12px;border-radius:8px;border:1px solid var(--edge);background:var(--bg);color:var(--text);width:100%}
+input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent)}
+input[type=range]{padding:0;accent-color:var(--accent)}
+.seg{display:flex;flex-wrap:wrap;gap:8px}
+.seg button.on{border-color:var(--accent);background:rgba(255,210,154,.12);color:var(--text)}
+.row{display:flex;justify-content:space-between}
+.clr{align-self:flex-start;height:28px;padding:0 10px;font-size:13px}
+.err{color:var(--bad);font-size:12px;min-height:0}
+.changed>input,.changed>select,.changed .seg{outline:1px dashed var(--accent);outline-offset:2px}
+#map{height:300px;border-radius:8px;border:1px solid var(--edge);background:#081026;display:flex;align-items:center;justify-content:center;color:var(--dim)}
+#map .leaflet-tile-pane{filter:brightness(.62) saturate(.6)}  /* dim the street map to the page; its own layer keeps the ring above it */
+.drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:110px;border:2px dashed var(--edge);border-radius:10px;cursor:pointer;text-align:center;padding:16px}
+.drop.over{border-color:var(--accent)}
+.prog{height:8px;border-radius:4px;background:var(--bg);overflow:hidden}
+.prog div{height:8px;width:0;background:var(--accent)}
+@media(max-width:700px){nav{flex:1 1 100%;max-width:none;flex-direction:row;flex-wrap:wrap}}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--card);border:1px solid var(--edge);padding:10px 16px;border-radius:8px;display:none}
+</style>
+</head>
+<body>
+<header><div class="bar">
+  <div class="brand"><b>Contrail</b><span class="muted" id="info">Connecting…</span></div>
+  <div class="actions"><span id="count"></span><button id="discard" disabled>Discard</button><button id="save" class="primary" disabled>Save</button></div>
+</div></header>
+<div class="wrap">
+  <nav aria-label="Sections" id="nav"></nav>
+  <main id="main"></main>
+</div>
+<div id="toast" role="status"></div>
+<script>
+"use strict";
+const GROUPS = [["location", "Location"], ["display", "Display"], ["alerts", "Alerts"], ["data", "Flight data"], ["hardware", "Hardware"]];
+// Time zones: label and POSIX rule (with its daylight-saving dates). "" = automatic.
+const ZONES = [
+  ["UTC", "UTC0"],
+  ["Hawaii", "HST10"],
+  ["Alaska", "AKST9AKDT,M3.2.0,M11.1.0"],
+  ["Pacific — Los Angeles, Vancouver", "PST8PDT,M3.2.0,M11.1.0"],
+  ["Mountain — Denver, Calgary", "MST7MDT,M3.2.0,M11.1.0"],
+  ["Arizona", "MST7"],
+  ["Central — Chicago, Winnipeg", "CST6CDT,M3.2.0,M11.1.0"],
+  ["Mexico City", "CST6"],
+  ["Eastern — New York, Toronto", "EST5EDT,M3.2.0,M11.1.0"],
+  ["Atlantic — Halifax", "AST4ADT,M3.2.0,M11.1.0"],
+  ["Puerto Rico", "AST4"],
+  ["Newfoundland", "NST3:30NDT,M3.2.0,M11.1.0"],
+  ["São Paulo, Buenos Aires", "<-03>3"],
+  ["UK, Ireland, Portugal", "GMT0BST,M3.5.0/1,M10.5.0"],
+  ["Central Europe — Paris, Berlin, Madrid", "CET-1CEST,M3.5.0,M10.5.0/3"],
+  ["West Africa — Lagos", "WAT-1"],
+  ["Eastern Europe — Athens, Helsinki, Kyiv", "EET-2EEST,M3.5.0/3,M10.5.0/4"],
+  ["South Africa", "SAST-2"],
+  ["Israel", "IST-2IDT,M3.4.4/26,M10.5.0"],
+  ["Moscow", "MSK-3"],
+  ["Istanbul", "<+03>-3"],
+  ["East Africa — Nairobi", "EAT-3"],
+  ["Gulf — Dubai", "<+04>-4"],
+  ["India", "IST-5:30"],
+  ["Bangladesh", "<+06>-6"],
+  ["Bangkok, Jakarta", "<+07>-7"],
+  ["China, Singapore, Perth", "<+08>-8"],
+  ["Japan, Korea", "JST-9"],
+  ["Darwin", "ACST-9:30"],
+  ["Adelaide", "ACST-9:30ACDT,M10.1.0,M4.1.0/3"],
+  ["Brisbane", "AEST-10"],
+  ["Sydney, Melbourne", "AEST-10AEDT,M10.1.0,M4.1.0/3"],
+  ["New Zealand", "NZST-12NZDT,M9.5.0,M4.1.0/3"],
+];
+const HIDDEN = new Set(["loc_set", "lat", "lon"]);  // loc_set is implied; lat/lon live in the map card
+const POST = {"Content-Type": "application/json", "X-Contrail": "1"};
+let info = {}, schema = [], saved = {}, edits = {}, map = null, pin = null, ring = null;
+const $ = s => document.querySelector(s);
+const el = (tag, attrs = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) k === "class" ? e.className = v : k.startsWith("on") ? e.addEventListener(k.slice(2), v) : e.setAttribute(k, v);
+  for (const k of kids) e.append(k);
+  return e;
+};
+const def = k => schema.find(d => d.key === k);
+const current = k => k in edits ? edits[k] : saved[k];
+const nice = s => s.charAt(0).toUpperCase() + s.slice(1);
+
+function toast(msg, ms = 4000) {
+  const t = $("#toast");
+  t.textContent = msg, t.style.display = "block";
+  clearTimeout(toast.h);
+  if (ms) toast.h = setTimeout(() => t.style.display = "none", ms);
+}
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(j.error || ("HTTP " + r.status)), {body: j});
+  return j;
+}
+
+function edit(key, value) {
+  const was = saved[key];
+  const same = typeof was === "object" ? value === "" : String(was) === String(value);
+  if (same && value !== null) delete edits[key]; else edits[key] = value;  // null clears a secret
+  if (key === "lat" || key === "lon") { if ("lat" in edits || "lon" in edits) edits.loc_set = true; else delete edits.loc_set; }
+  if (key === "radius_nm" && ring) ring.setRadius(Number(value) * 1852);
+  const n = Object.keys(edits).filter(k => k !== "loc_set").length;
+  $("#count").textContent = n ? n + (n === 1 ? " unsaved change" : " unsaved changes") : "";
+  $("#save").disabled = $("#discard").disabled = !n;
+  const f = document.querySelector(`[data-key="${key}"]`);
+  if (f) f.classList.toggle("changed", key in edits), f.querySelector(".err").textContent = "";
+}
+
+const secretHint = key => edits[key] === null ? "Will be cleared" : saved[key] && saved[key].set ? "Saved — type to replace" : "Not set";
+
+function field(d, control, cls = "f") {
+  const lab = el("label", {class: cls, "data-key": d.key});
+  if (cls === "c") lab.append(control, d.label);
+  else lab.append(d.label, control);
+  lab.append(el("span", {class: "err"}));
+  return lab;
+}
+
+function control(d) {
+  const v = current(d.key);
+  if (d.key === "tz") return field(d, tzSelect(v));
+  if (d.key === "quiet_from" || d.key === "quiet_to") {
+    const i = el("input", {type: "time", value: v});
+    i.oninput = () => edit(d.key, i.value);
+    return field(d, i);
+  }
+  if (d.secret) {
+    const i = el("input", {type: "password", autocomplete: "off", placeholder: secretHint(d.key)});
+    i.oninput = () => { edit(d.key, i.value); i.placeholder = secretHint(d.key); };
+    const lab = field(d, i);
+    if (saved[d.key] && saved[d.key].set) {
+      // The API clears a secret on null; "" means unchanged.
+      const clr = el("button", {type: "button", class: "clr"}, "Clear");
+      clr.onclick = () => { i.value = ""; edit(d.key, null); i.placeholder = "Will be cleared"; };
+      lab.insertBefore(clr, lab.querySelector(".err"));
+    }
+    return lab;
+  }
+  if (d.type === "bool") {
+    const i = el("input", {type: "checkbox"});
+    i.checked = !!v;
+    i.onchange = () => edit(d.key, i.checked);
+    return field(d, i, "c");
+  }
+  if (d.type === "enum" && d.options.length <= 3) {
+    const seg = el("div", {class: "seg", role: "radiogroup"});
+    for (const o of d.options) {
+      const b = el("button", {type: "button", class: o === v ? "on" : ""}, nice(o));
+      b.onclick = e => {
+        e.preventDefault();
+        seg.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+        edit(d.key, o);
+      };
+      seg.append(b);
+    }
+    const wrap = el("div", {class: "f", "data-key": d.key}, d.label, seg, el("span", {class: "err"}));
+    return wrap;
+  }
+  if (d.type === "enum") {
+    const s = el("select");
+    for (const o of d.options) s.append(el("option", {value: o}, nice(o)));
+    s.value = v;
+    s.onchange = () => edit(d.key, s.value);
+    return field(d, s);
+  }
+  if ((d.type === "int" || d.type === "float") && (d.key === "radius_nm" || d.key === "brightness")) {
+    const out = el("span", {}, "");
+    const show = x => out.textContent = d.key === "brightness" ? Math.round(x * 100 / 255) + "%" : x + " nm";
+    const i = el("input", {type: "range", min: d.min, max: d.max, step: 1, value: v});
+    i.oninput = () => { show(i.value); edit(d.key, Number(i.value)); };
+    show(v);
+    const lab = el("label", {class: "f", "data-key": d.key}, el("span", {class: "row"}, el("span", {}, d.label), out), i, el("span", {class: "err"}));
+    return lab;
+  }
+  if (d.type === "int" || d.type === "float") {
+    const i = el("input", {type: "number", min: d.min, max: d.max, step: d.type === "int" ? 1 : "any", value: v});
+    i.oninput = () => edit(d.key, i.value === "" ? "" : Number(i.value));
+    return field(d, i);
+  }
+  const i = el("input", {type: "text", value: v || ""});
+  i.oninput = () => edit(d.key, i.value);
+  return field(d, i);
+}
+
+function tzSelect(v) {
+  const s = el("select");
+  const off = info.autoOffsetS;
+  const auto = off == null ? "Automatic" : `Automatic — now UTC${off < 0 ? "−" : "+"}${String(Math.floor(Math.abs(off) / 3600)).padStart(2, "0")}:${String(Math.abs(off) / 60 % 60).padStart(2, "0")} from your location`;
+  s.append(el("option", {value: ""}, auto));
+  for (const [label, rule] of ZONES) s.append(el("option", {value: rule}, label));
+  if (v && !ZONES.some(z => z[1] === v)) s.append(el("option", {value: v}, "Custom: " + v));
+  s.value = v || "";
+  s.onchange = () => edit("tz", s.value);
+  return s;
+}
+
+function locationCard() {
+  if (map) map.remove();  // a re-render (Discard) builds a fresh map; free the old one
+  map = pin = ring = null;
+  const lat = el("input", {type: "number", step: "any", min: -90, max: 90, value: saved.lat});
+  const lon = el("input", {type: "number", step: "any", min: -180, max: 180, value: saved.lon});
+  // An empty field or a lone "-" reads as NaN/"" while typing: wait for a real number.
+  const typed = (key, i) => { const n = i.value.trim() === "" ? NaN : Number(i.value); if (Number.isFinite(n)) edit(key, n), movePin(); };
+  lat.oninput = () => typed("lat", lat);
+  lon.oninput = () => typed("lon", lon);
+  const movePin = () => {
+    if (!map) return;
+    const ll = [Number(current("lat")), Number(current("lon"))];
+    pin.setLatLng(ll), ring.setLatLng(ll);
+  };
+  const box = el("div", {id: "map"}, "Loading map…");
+  loadLeaflet().then(() => {
+    if (!box.isConnected) return;  // Discard rebuilt the page while the library loaded
+    box.textContent = "";
+    const ll = [Number(saved.lat), Number(saved.lon)];
+    map = L.map(box).setView(ll, saved.loc_set ? 9 : 3);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom: 18, attribution: "© OpenStreetMap contributors"}).addTo(map);
+    ring = L.circle(ll, {radius: Number(current("radius_nm")) * 1852, color: "#FFD29A", weight: 3, dashArray: "6 6", fillOpacity: 0.08}).addTo(map);
+    // Leaflet measures the box when it is made; measure again once the page has laid out, then frame the radius.
+    const frame = () => { map.invalidateSize(); if (saved.loc_set) map.fitBounds(ring.getBounds(), {padding: [16, 16]}); };
+    requestAnimationFrame(frame);
+    pin = L.circleMarker(ll, {radius: 8, color: "#0B1029", weight: 3, fillColor: "#FFD29A", fillOpacity: 1}).addTo(map);
+    map.on("click", e => {
+      lat.value = e.latlng.lat.toFixed(4), lon.value = e.latlng.lng.toFixed(4);
+      edit("lat", Number(lat.value)), edit("lon", Number(lon.value));
+      movePin();
+    });
+  }).catch(() => box.textContent = "Map unavailable — enter coordinates below");
+  const sec = el("section", {id: "location"}, el("h2", {}, "Location"),
+    el("div", {class: "muted"}, "Click the map to move home. The ring is the radius."), box,
+    el("div", {class: "grid"}, field(def("lat"), lat), field(def("lon"), lon)));
+  for (const d of schema) if (d.group === "location" && !HIDDEN.has(d.key)) sec.append(control(d));
+  return sec;
+}
+
+addEventListener("resize", () => map && map.invalidateSize());
+
+function loadLeaflet() {
+  return new Promise((ok, fail) => {
+    if (window.L) return ok();
+    const css = el("link", {rel: "stylesheet", href: "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css", integrity: "sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=", crossorigin: ""});
+    const js = el("script", {src: "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js", integrity: "sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=", crossorigin: ""});
+    js.onload = ok, js.onerror = fail;
+    setTimeout(() => window.L ? ok() : fail(), 10000);
+    document.head.append(css, js);
+  });
+}
+
+// The SD card line on the Firmware card (5a spec §7).
+function sdLine(sd) {
+  if (sd && sd.error) return `SD card · ${sd.error}`;  // also a card that did not mount (exFAT, …)
+  if (!sd || !sd.mounted) return "No SD card";
+  if (sd.logos != null) return `SD card · logos.pak · ${sd.logos.toLocaleString()} logos`;
+  return "SD card · no logos.pak";
+}
+
+// The map line under it (5b spec §7).
+function mapLine(m) {
+  if (!m) return "";
+  if (m.state !== "detailed") return m.why && m.why !== "no map.pak" ? `Map: built-in (${m.why})` : "Map: built-in";
+  const dmg = m.damaged ? ` (${m.damaged} damaged tiles)` : "";
+  return `Map: detailed · ${m.cover} nm around ${m.lat.toFixed(2)}, ${m.lon.toFixed(2)}${dmg}`;
+}
+
+function firmwareCard() {
+  const file = el("input", {type: "file", accept: ".bin", hidden: ""});
+  const status = el("div", {class: "muted"}, "");
+  const bar = el("div");
+  const prog = el("div", {class: "prog", hidden: ""}, bar);
+  const drop = el("label", {class: "drop"}, el("b", {}, "Drop firmware.bin here"), el("span", {class: "muted"}, "or click to choose a file"), file);
+  drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
+  drop.ondragleave = () => drop.classList.remove("over");
+  drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); if (e.dataTransfer.files[0]) upload(e.dataTransfer.files[0]); };
+  file.onchange = () => file.files[0] && upload(file.files[0]);
+  function upload(f) {
+    file.value = "";  // so choosing the same file again still fires change
+    if (!/\.bin$/i.test(f.name)) return status.textContent = "Choose a .bin file.";
+    const x = new XMLHttpRequest();
+    x.open("POST", "/api/update");
+    x.setRequestHeader("X-Contrail", "1");
+    x.setRequestHeader("X-Size", String(f.size));
+    x.upload.onprogress = e => { if (e.lengthComputable) { const p = Math.round(e.loaded * 100 / e.total); bar.style.width = p + "%"; status.textContent = `Uploading ${f.name} — ${p}%`; } };
+    x.onload = () => {
+      let j = {};
+      try { j = JSON.parse(x.responseText); } catch (e) {}
+      if (x.status === 200 && j.ok) { status.textContent = "Installed. Contrail is restarting…"; waitForRestart(); }
+      else { status.textContent = "Update failed: " + (j.error || x.status) + ". The old firmware is still running."; prog.hidden = true; }
+    };
+    x.onerror = () => { status.textContent = "Upload interrupted. The old firmware is still running."; prog.hidden = true; };
+    const form = new FormData();
+    form.append("firmware", f, f.name);
+    prog.hidden = false, bar.style.width = "0";
+    status.textContent = "Keep this page open. The device restarts when the upload finishes.";
+    x.send(form);
+  }
+  return el("section", {id: "firmware"}, el("h2", {}, "Firmware"),
+    el("div", {}, `Running ${info.version}, built ${info.built}. Upload a firmware.bin to update. Settings are kept.`),
+    el("div", {}, sdLine(info.sd)),
+    el("div", {}, mapLine(info.sd && info.sd.map)),
+    info.sd && info.sd.map && info.sd.map.state === "detailed" ? el("div", {class: "muted"}, "Map data: Natural Earth, OurAirports, GeoNames") : "",
+    drop, prog, status);
+}
+
+function render() {
+  const main = $("#main"), nav = $("#nav");
+  main.textContent = "", nav.textContent = "";
+  main.append(locationCard());
+  for (const [g, title] of GROUPS) {
+    nav.append(el("a", {href: "#" + g}, title));
+    if (g === "location") continue;
+    const h = el("h2", {}, title);
+    if (g === "hardware") h.append(el("span", {class: "note"}, "Saving these restarts the device"));
+    const grid = el("div", {class: "grid"});
+    for (const d of schema) if (d.group === g && !HIDDEN.has(d.key)) grid.append(control(d));
+    main.append(el("section", {id: g}, h, grid));
+  }
+  nav.append(el("a", {href: "#firmware"}, "Firmware"));
+  main.append(firmwareCard());
+}
+
+async function load() {
+  try {
+    [info, {settings: schema}, saved] = await Promise.all([api("/api/info"), api("/api/schema"), api("/api/settings")]);
+  } catch (e) {
+    $("#info").textContent = "Couldn't reach Contrail — reload to try again";
+    return;
+  }
+  $("#info").textContent = `contrail.local · ${info.ip} · firmware ${info.version}`;
+  edits = {};
+  edit("_", undefined);
+  render();
+}
+
+async function save() {
+  $("#save").disabled = true;
+  const sent = {...edits};  // anything typed while the request runs stays an edit
+  try {
+    const r = await api("/api/settings", {method: "POST", headers: POST, body: JSON.stringify(sent)});
+    if (r.restart) { toast("Saved. Contrail is restarting…", 0); waitForRestart(); return; }  // it may already be going down: no follow-up GET
+    saved = await api("/api/settings");
+    for (const [k, v] of Object.entries(sent)) if (edits[k] === v) delete edits[k];
+    if ("lat" in edits || "lon" in edits) edits.loc_set = true; else delete edits.loc_set;
+    edit("_", undefined);
+    document.querySelectorAll("[data-key]").forEach(f => f.classList.toggle("changed", f.dataset.key in edits));
+    for (const d of schema) {
+      if (!d.secret || d.key in edits) continue;
+      const f = document.querySelector(`[data-key="${d.key}"]`);
+      if (f) f.querySelector("input").value = "", f.querySelector("input").placeholder = secretHint(d.key);
+    }
+    toast("Saved");
+  } catch (e) {
+    const errs = (e.body && e.body.errors) || {};
+    for (const [k, why] of Object.entries(errs)) {
+      const f = document.querySelector(`[data-key="${k}"] .err`);
+      if (f) f.textContent = why;
+    }
+    toast(Object.keys(errs).length ? "Nothing saved: fix the marked fields" : "Couldn't reach Contrail — try again");
+    $("#save").disabled = false;
+  }
+}
+
+async function waitForRestart() {
+  await new Promise(r => setTimeout(r, 4000));
+  for (let i = 0; i < 60; ++i) {
+    try { await api("/api/info"); location.reload(); return; } catch (e) {}
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  toast("Contrail hasn't come back yet — reload the page later", 0);
+}
+
+$("#save").onclick = save;
+$("#discard").onclick = () => load();
+addEventListener("beforeunload", e => { if (Object.keys(edits).length) e.preventDefault(), e.returnValue = ""; });
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+{
+  "flights": [
+    {
+      "ident": "UAL1423",
+      "ident_icao": "UAL1423",
+      "operator": "UAL",
+      "status": "Scheduled",
+      "origin": {"code": "KORD", "code_icao": "KORD", "code_iata": "ORD", "name": "Chicago O'Hare Intl", "city": "Chicago"},
+      "destination": {"code": "KSFO", "code_icao": "KSFO", "code_iata": "SFO", "name": "San Francisco Intl", "city": "San Francisco"},
+      "scheduled_out": "2026-10-31T14:00:00Z",
+      "actual_off": null,
+      "actual_on": null,
+      "progress_percent": 0
+    },
+    {
+      "ident": "UAL1423",
+      "ident_icao": "UAL1423",
+      "operator": "UAL",
+      "status": "En Route / On Time",
+      "origin": {"code": "KSFO", "code_icao": "KSFO", "code_iata": "SFO", "name": "San Francisco Intl", "city": "San Francisco"},
+      "destination": {"code": "KORD", "code_icao": "KORD", "code_iata": "ORD", "name": "Chicago O'Hare Intl", "city": "Chicago"},
+      "scheduled_out": "2026-10-30T16:00:00Z",
+      "actual_off": "2026-10-30T16:12:00Z",
+      "actual_on": null,
+      "progress_percent": 62
+    },
+    {
+      "ident": "UAL1423",
+      "operator": "UAL",
+      "status": "Arrived / Gate Arrival",
+      "origin": {"code_icao": "KORD", "code_iata": "ORD", "city": "Chicago"},
+      "destination": {"code_icao": "KSFO", "code_iata": "SFO", "city": "San Francisco"},
+      "actual_off": "2026-10-29T14:10:00Z",
+      "actual_on": "2026-10-29T18:20:00Z",
+      "progress_percent": 100
+    }
+  ],
+  "links": null,
+  "num_pages": 1
+}

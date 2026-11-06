@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Install Contrail</title>
+<meta name="description" content="Install Contrail on an ESP32-2432S028R Cheap Yellow Display from Chrome or Edge, no tools needed.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+<!-- ESP Web Tools (Apache-2.0), pinned. -->
+<script type="module" src="https://cdn.jsdelivr.net/npm/esp-web-tools@10.4.0/dist/web/install-button.js"></script>
+<script type="module" src="install.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="favicon.svg" alt="">Contrail</a>
+    <nav aria-label="Site">
+      <a href="./">Showcase</a>
+      <a href="install.html" aria-current="page">Install</a>
+      <a href="https://github.com/ChristopherJacob/contrail">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section>
+    <div class="wrap">
+      <h1>Install Contrail</h1>
+      <p class="lead">Plug the display into this computer and install from the browser. No tools to set up.</p>
+
+      <fieldset class="picker">
+        <legend>Which board do you have?</legend>
+        <label class="option">
+          <input type="radio" name="model" value="cyd2usb" checked>
+          <span class="card"><b>CYD 2.8 with USB-C</b><span>Two USB ports (USB-C and micro-USB). Often sold as
+            &ldquo;CYD2USB&rdquo;; its colours are inverted.</span></span>
+        </label>
+        <label class="option">
+          <input type="radio" name="model" value="cyd_microusb">
+          <span class="card"><b>CYD 2.8, micro-USB only<span class="tag">untested</span></b><span>One micro-USB
+            port, the original board. Not yet tested on this board.</span></span>
+        </label>
+      </fieldset>
+
+      <div class="panel">
+        <p class="status" id="release-status" aria-live="polite">Checking for the latest release&hellip;</p>
+        <div id="installer" hidden>
+          <esp-web-install-button id="install-button" manifest="manifest-cyd2usb.json">
+            <button slot="activate" class="btn">Install Contrail</button>
+            <p slot="not-allowed" class="note warn">Installing needs a secure (https) page.</p>
+          </esp-web-install-button>
+        </div>
+        <p class="note" id="no-release" hidden>No release yet. Contrail's first release is on its way; until
+          then it can be built from <a href="https://github.com/ChristopherJacob/contrail">the source</a>.</p>
+        <p class="note warn" id="no-serial" hidden>Installing needs Chrome or Edge on a computer. Phones,
+          tablets, Safari and Firefox can't connect to the board over USB.</p>
+      </div>
+
+      <h2>Setup</h2>
+      <ol class="steps">
+        <li><b>Plug the display in</b> with a USB data cable (some cables only charge). On the two-port board
+          either port works.</li>
+        <li><b>Click Install</b> and pick the board's serial port (often &ldquo;USB Serial&rdquo;, &ldquo;CH340&rdquo; or
+          &ldquo;CP210x&rdquo;). The installer asks whether to erase the device; leave it off to keep your settings
+          when updating, or turn it on for a clean start. Installing takes about a minute.</li>
+        <li><b>Join the <code>Contrail-setup</code> Wi-Fi network</b> from a phone or computer when the display
+          asks. Pick your home Wi-Fi and enter its password.</li>
+        <li><b>Set your location</b> (latitude and longitude) on the setup page, or leave it empty and Contrail
+          finds roughly where you are from your internet connection. After that, the board's web page at
+          <code>http://contrail.local</code> has every setting.</li>
+        <li><b>Optional: an SD card.</b> Copy <a id="logos-link"
+          href="https://github.com/ChristopherJacob/contrail/releases/latest/download/logos.pak">logos.pak</a>
+          to <code>/contrail/logos.pak</code> on a FAT32 microSD card for real airline logos. For a detailed Live
+          Map, build a map pack for your home as the
+          <a href="https://github.com/ChristopherJacob/contrail#detailed-map">README describes</a>.</li>
+      </ol>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Contrail is free software under the <a href="https://github.com/ChristopherJacob/contrail/blob/main/LICENSE">GPL-3.0</a>.</p>
+    <p>Airline logos are trademarks of their respective owners and are shown only to identify airlines; Contrail
+      is not affiliated with any airline.</p>
+    <p>Map data: Natural Earth, OurAirports, GeoNames.</p>
+    <p>Inter font &copy; The Inter Project Authors and Barlow font &copy; The Barlow Project Authors, both under the
+      <a href="https://github.com/ChristopherJacob/contrail/blob/main/tools/fonts/OFL.txt">SIL Open Font License 1.1</a>.
+      Installer: <a href="https://esphome.github.io/esp-web-tools/">ESP Web Tools</a>.</p>
+  </div>
+</footer>
+</body>
+</html>

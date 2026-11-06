@@ -1,0 +1,11 @@
+{
+  "name": "Contrail for CYD 2.8 (micro-USB only)",
+  "version": "latest",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32",
+      "parts": [{ "path": "firmware/contrail-cyd_microusb-install.bin", "offset": 0 }]
+    }
+  ]
+}

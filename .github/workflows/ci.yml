@@ -1,0 +1,64 @@
+name: CI
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: firmware
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
+      # Object files from the last run. Safe to reuse: SCons decides by content (MD5), so anything whose source,
+      # header or flags changed is rebuilt, and PlatformIO wipes the folder itself when files are added or removed
+      # (its project checksum). Release builds use no such cache: they always build from scratch.
+      - name: Cache the builds
+        uses: actions/cache@v4
+        with:
+          path: firmware/.pio/build
+          key: pio-build-${{ runner.os }}-${{ hashFiles('firmware/**', '!firmware/.cache/**') }}
+          restore-keys: pio-build-${{ runner.os }}-
+      - name: Install PlatformIO, SDL2 and curl
+        run: |
+          pip install platformio==6.2.0 -r ../tools/requirements.txt
+          sudo apt-get update && sudo apt-get install -y libsdl2-dev libcurl4-openssl-dev zlib1g-dev
+      # Before any pio run, so PlatformIO's project checksum (it lists src/ headers) stays the same and no
+      # later pio command wipes .pio/build.
+      - name: Generate the web page header
+        run: python scripts/web_embed.py
+      - name: Native tests
+        run: pio test -e test
+      - name: Upload golden differences
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-actuals
+          path: firmware/test/golden/*.actual.ppm
+          if-no-files-found: ignore
+      - name: Tool self-tests
+        run: |
+          python -I ../tools/build_map.py --selftest
+          python -I ../tools/build_pack.py --selftest
+      - name: Build every environment
+        run: |
+          for e in cyd2usb cyd2usb_editorial cyd2usb_soak cyd_microusb sim cyd_sdload cyd_probe cyd_bench cyd_touch; do
+            pio run -e "$e"
+          done

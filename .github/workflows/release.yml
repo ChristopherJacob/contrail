@@ -1,0 +1,103 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  # Tests, builds and the release files, with a read-only token that is not left in the checkout.
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
+      - name: Install PlatformIO and esptool
+        run: |
+          pip install platformio==6.2.0 esptool==4.8.1 -r tools/requirements.txt
+          sudo apt-get update && sudo apt-get install -y zlib1g-dev
+      # Before any pio run: the header is generated into src/ by the first ESP32 build otherwise, which changes
+      # PlatformIO's project checksum, so the next pio command (envdump in release_assets.sh) wipes .pio/build.
+      - name: Generate the web page header
+        run: python firmware/scripts/web_embed.py
+      - name: Tests
+        working-directory: firmware
+        run: pio test -e test
+      - name: Build
+        working-directory: firmware
+        run: pio run -e cyd2usb && pio run -e cyd_microusb
+      - name: Assets
+        run: tools/release_assets.sh "${GITHUB_REF_NAME#v}" dist
+      - name: Check the version inside
+        run: |
+          for m in cyd2usb cyd_microusb; do
+            strings "dist/contrail-$m-app.bin" | grep -qx "${GITHUB_REF_NAME#v}" || { echo "$m: no version string"; exit 1; }
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  # The GitHub Release, from the build's files; the only job that can write.
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write  # to start the Pages workflow: a release made with GITHUB_TOKEN triggers no workflows
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      # The tag's annotation, subject and body only (never a signature), fetched by itself into an empty repo:
+      # there is no checkout here, and the token is passed for this one command, not stored.
+      - name: Notes from the tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git init -q tagrepo
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')"
+          git -C tagrepo -c "http.extraheader=AUTHORIZATION: basic $auth" fetch -q --depth=1 \
+            "https://github.com/$GITHUB_REPOSITORY.git" "+refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+          ref="refs/tags/$GITHUB_REF_NAME"
+          : > notes.md
+          if [ "$(git -C tagrepo for-each-ref --format='%(objecttype)' "$ref")" = tag ]; then
+            subject="$(git -C tagrepo for-each-ref --format='%(contents:subject)' "$ref")"
+            body="$(git -C tagrepo for-each-ref --format='%(contents:body)' "$ref")"
+            if [ -n "$body" ]; then printf '%s\n\n%s\n' "$subject" "$body" > notes.md
+            elif [ -n "$subject" ]; then printf '%s\n' "$subject" > notes.md; fi
+          fi
+          [ -s notes.md ] || printf 'Contrail %s\n' "${GITHUB_REF_NAME#v}" > notes.md  # a lightweight tag
+          rm -rf tagrepo
+          cat notes.md
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=""
+          case "$GITHUB_REF_NAME" in *-*) prerelease="--prerelease";; esac
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "Contrail ${GITHUB_REF_NAME#v}" --notes-file notes.md $prerelease
+      # A release created with GITHUB_TOKEN fires no `release` event for other workflows, so start Pages here
+      # (a full release only: pre-releases are not "latest").
+      - name: Refresh the site
+        if: ${{ !contains(github.ref_name, '-') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main

@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contrail: flights overhead on a Cheap Yellow Display</title>
+<meta name="description" content="Contrail is open-source ESP32 firmware that shows the flights overhead on a 2.8-inch touch screen that costs about $15. Install it from your browser.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="favicon.svg" alt="">Contrail</a>
+    <nav aria-label="Site">
+      <a href="./" aria-current="page">Showcase</a>
+      <a href="install.html">Install</a>
+      <a href="https://github.com/ChristopherJacob/contrail">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <h1>Contrail</h1>
+        <p class="lead">Flights overhead, on a touch screen that costs about $15.</p>
+        <p class="muted">Open-source firmware for the ESP32 &ldquo;Cheap Yellow Display&rdquo;. It shows the planes
+          above you, live from free ADS-B feeds or your own receiver, with smooth 30&nbsp;fps animation and a sky
+          that follows the sun.</p>
+        <div class="actions">
+          <a class="btn" href="install.html">Install from your browser</a>
+          <a class="btn ghost" href="https://github.com/ChristopherJacob/contrail">Source on GitHub</a>
+        </div>
+      </div>
+      <div class="device">
+        <img src="shots/closest-cinematic.png" width="360" height="480"
+             alt="Closest Flight screen: United 53 from Zurich to Washington Dulles, 34,000 ft, 2.4 nm away">
+      </div>
+    </div>
+  </section>
+
+  <section id="screens">
+    <div class="wrap">
+      <h2>Seven screens, two themes</h2>
+      <p class="muted">Each screen in Cinematic Sky (left) and Bold Editorial (right), straight from the
+        firmware's renderer. Contrail picks the screen from what is happening, cycles them, or stays put; a tap
+        moves between them.</p>
+      <div class="shots">
+        <figure class="shot">
+          <div class="pair">
+            <div><img src="shots/closest-cinematic.png" width="240" height="320" loading="lazy" alt="Closest Flight, Cinematic Sky theme"><div class="theme">Cinematic Sky</div></div>
+            <div><img src="shots/closest-editorial.png" width="240" height="320" loading="lazy" alt="Closest Flight, Bold Editorial theme"><div class="theme">Bold Editorial</div></div>
+          </div>
+          <figcaption><b>Closest Flight</b>The nearest plane: airline, aircraft, route and how far along it
+            is, altitude, speed and where to look.</figcaption>
+        </figure>
+        <figure class="shot">
+          <div class="pair">
+            <div><img src="shots/radar-cinematic.png" width="240" height="320" loading="lazy" alt="Radar, Cinematic Sky theme"><div class="theme">Cinematic Sky</div></div>
+            <div><img src="shots/radar-editorial.png" width="240" height="320" loading="lazy" alt="Radar, Bold Editorial theme"><div class="theme">Bold Editorial</div></div>
+          </div>
+          <figcaption><b>Radar</b>Every flight in range on a sweeping scope, centred on home.</figcaption>
+        </figure>
+        <figure class="shot">
+          <div class="pair">
+            <div><img src="shots/map-cinematic.png" width="240" height="320" loading="lazy" alt="Live Map, Cinematic Sky theme"><div class="theme">Cinematic Sky</div></div>
+            <div><img src="shots/map-editorial.png" width="240" height="320" loading="lazy" alt="Live Map, Bold Editorial theme"><div class="theme">Bold Editorial</div></div>
+          </div>
+          <figcaption><b>Live Map</b>Planes and their trails over coastlines and airports; with a map pack on
+            the SD card, roads, rivers and towns too.</figcaption>
+        </figure>
+        <figure class="shot">
+          <div class="pair">
+            <div><img src="shots/board-cinematic.png" width="240" height="320" loading="lazy" alt="Departure Board, Cinematic Sky theme"><div class="theme">Cinematic Sky</div></div>
+            <div><img src="shots/board-editorial.png" width="240" height="320" loading="lazy" alt="Departure Board, Bold Editorial theme"><div class="theme">Bold Editorial</div></div>
+          </div>
+          <figcaption><b>Board</b>Everything overhead as a departure board, nearest first.</figcaption>
+        </figure>
+        <figure class="shot">
+          <div class="pair">
+            <div><img src="shots/sky-cinematic.png" width="240" height="320" loading="lazy" alt="Sky view at night, Cinematic Sky theme"><div class="theme">Cinematic Sky</div></div>
+            <div><img src="shots/sky-editorial.png" width="240" height="320" loading="lazy" alt="Sky view at night, Bold Editorial theme"><div class="theme">Bold Editorial</div></div>
+          </div>
+          <figcaption><b>Sky</b>Look up: the sky above you with the sun, moon and stars, and the planes where
+            you would see them.</figcaption>
+        </figure>
+        <figure class="shot">
+          <div class="pair">
+            <div><img src="shots/stats-cinematic.png" width="240" height="320" loading="lazy" alt="Stats, Cinematic Sky theme"><div class="theme">Cinematic Sky</div></div>
+            <div><img src="shots/stats-editorial.png" width="240" height="320" loading="lazy" alt="Stats, Bold Editorial theme"><div class="theme">Bold Editorial</div></div>
+          </div>
+          <figcaption><b>Stats</b>Today's logbook: flights by hour, top airlines, aircraft types seen.</figcaption>
+        </figure>
+        <figure class="shot">
+          <div class="pair">
+            <div><img src="shots/alert-cinematic.png" width="240" height="320" loading="lazy" alt="Emergency alert, Cinematic Sky theme"><div class="theme">Cinematic Sky</div></div>
+            <div><img src="shots/alert-editorial.png" width="240" height="320" loading="lazy" alt="Emergency alert, Bold Editorial theme"><div class="theme">Bold Editorial</div></div>
+          </div>
+          <figcaption><b>Alerts</b>Emergency squawks, military aircraft, your watchlist and low passes take
+            over the screen, with the board's LED.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="features">
+    <div class="wrap">
+      <h2>Features</h2>
+      <ul class="features">
+        <li><b>Free live data</b>Community ADS-B feeds (adsb.lol, adsb.fi, airplanes.live) with no key, your own
+          dump1090 / readsb receiver, or OpenSky. Routes from adsbdb.</li>
+        <li><b>Smooth graphics</b>30&nbsp;fps animation on a board with no PSRAM, drawn in strips with only the
+          changed pixels sent to the screen.</li>
+        <li><b>A sky that follows the sun</b>Day, dusk and night skies from the sun's real position, with the
+          moon, its phase and the stars.</li>
+        <li><b>Two themes</b>Cinematic Sky, and Bold Editorial in flat airline colours and big type.</li>
+        <li><b>Alerts</b>Emergency squawks, military aircraft, a watchlist of tails, callsigns and types, and low
+          passes, each switched on or off.</li>
+        <li><b>Set up from your phone</b>Wi-Fi setup on first boot, then a web page on the board for settings,
+          the watchlist and firmware updates. Quick settings on the touch screen.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="hardware">
+    <div class="wrap">
+      <h2>Hardware</h2>
+      <p>Contrail runs on the <b>ESP32-2432S028R</b>, the 2.8-inch &ldquo;Cheap Yellow Display&rdquo;: an ESP32 with a
+        240&times;320 touch screen, an RGB LED and a microSD slot, all on one board. It is sold by many shops for
+        about $15; <a href="https://duckduckgo.com/?q=ESP32-2432S028R">search for ESP32-2432S028R</a>. Both the
+        version with two USB ports (USB-C and micro-USB) and the original micro-USB one work.</p>
+      <p>A <b>microSD card</b> is optional. With one, Contrail shows real airline logos instead of drawn tail fins,
+        and a detailed Live Map with roads, rivers, towns and every airfield around you.</p>
+      <p><a class="btn" href="install.html">Install Contrail</a></p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Contrail is free software under the <a href="https://github.com/ChristopherJacob/contrail/blob/main/LICENSE">GPL-3.0</a>.</p>
+    <p>Airline logos are trademarks of their respective owners and are shown only to identify airlines; Contrail
+      is not affiliated with any airline.</p>
+    <p>Map data: Natural Earth, OurAirports, GeoNames.</p>
+    <p>Inter font &copy; The Inter Project Authors and Barlow font &copy; The Barlow Project Authors, both under the
+      <a href="https://github.com/ChristopherJacob/contrail/blob/main/tools/fonts/OFL.txt">SIL Open Font License 1.1</a>.</p>
+  </div>
+</footer>
+</body>
+</html>

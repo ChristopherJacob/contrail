@@ -1,0 +1,11 @@
+{
+  "name": "Contrail for CYD 2.8 (USB-C)",
+  "version": "latest",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32",
+      "parts": [{ "path": "firmware/contrail-cyd2usb-install.bin", "offset": 0 }]
+    }
+  ]
+}
