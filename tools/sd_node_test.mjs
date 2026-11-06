@@ -13,6 +13,19 @@ if (!nativePak) {
 const { loadPyodide } = await import(pathToFileURL(resolve(pyodideModule)).href);
 const py = await loadPyodide();
 const tools = dirname(fileURLToPath(import.meta.url));
+
+// The page loads Pyodide from the CDN URL in site/sd-worker.js; this test means something only for that version.
+const workerSource = readFileSync(`${tools}/../site/sd-worker.js`, "utf8");
+const pageVersion = workerSource.match(/const PYODIDE = "[^"]*\/pyodide\/v(\d+\.\d+\.\d+)\//)?.[1];
+if (!pageVersion) {
+    console.error("couldn't find the Pyodide version in site/sd-worker.js's PYODIDE URL");
+    process.exit(1);
+}
+if (pageVersion !== py.version) {
+    console.error(`Pyodide ${py.version} here, but site/sd-worker.js loads ${pageVersion}: test with the page's version ` +
+        `(npm install pyodide@${pageVersion}) or update PYODIDE`);
+    process.exit(1);
+}
 for (const f of ["build_map.py", "gen_map.py", "sd_card.py"]) {
     py.FS.writeFile(`/home/pyodide/${f}`, readFileSync(`${tools}/${f}`));
 }

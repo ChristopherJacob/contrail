@@ -125,6 +125,31 @@ esp-web-install-button { display: inline-block; }
 .steps li b { color: var(--text); }
 code { font: 14px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--card-2); padding: 1px 6px; border-radius: 5px; }
 
+/* SD card */
+.panel h3 { margin-bottom: 14px; }
+.field { display: grid; gap: 6px; color: var(--soft); font-size: 15px; }
+.input {
+    font: inherit; color: var(--text); background: var(--bg-2); border: 1.5px solid var(--edge); border-radius: 10px;
+    padding: 10px 12px; width: 100%; margin-top: 6px;
+}
+.input:focus { border-color: var(--accent); outline: none; }
+.row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; margin-top: 16px; }
+.results { list-style: none; margin: 6px 0 0; padding: 4px; background: var(--card-2); border: 1px solid var(--edge); border-radius: 10px; }
+.results li.muted { padding: 8px 10px; }
+.results button {
+    display: block; width: 100%; text-align: left; font: inherit; color: var(--text); background: none; border: 0;
+    padding: 8px 10px; border-radius: 8px; cursor: pointer;
+}
+.results button:hover, .results button:focus-visible { background: rgba(255, 210, 154, .12); }
+.results small { color: var(--dim); margin-left: 8px; }
+.near { margin: 12px 0 0; min-height: 1.55em; }
+#home-note { margin: 12px 0 0; }
+progress { display: block; width: 100%; height: 8px; accent-color: var(--accent); margin: 16px 0 8px; }
+#working .status { margin: 0; }
+#result { margin-top: 16px; }
+.summary { margin: 12px 0 0; }
+#failed { margin: 16px 0 0; }
+
 /* Footer */
 footer { border-top: 1px solid rgba(43, 54, 112, .6); padding: 28px 0 40px; color: var(--dim); font-size: 14px; }
 footer p { margin: 0 0 .6em; }
@@ -139,4 +164,9 @@ footer .flag { width: 18px; height: 12px; flex: none; border-radius: 1px; box-sh
     .picker { grid-template-columns: 1fr; }
     .top nav { margin-left: 0; gap: 16px; }
     section { padding: 36px 0; }
+}
+
+@media (max-width: 760px) {
+    .row { grid-template-columns: 1fr 1fr; }
+    .row .btn { grid-column: 1 / -1; }
 }
