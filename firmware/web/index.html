@@ -99,6 +99,7 @@ const ZONES = [
   ["New Zealand", "NZST-12NZDT,M9.5.0,M4.1.0/3"],
 ];
 const HIDDEN = new Set(["loc_set", "lat", "lon"]);  // loc_set is implied; lat/lon live in the map card
+const SD_PAGE = "https://christopherjacob.github.io/contrail/sd.html";  // the site's SD card builder (6c)
 const POST = {"Content-Type": "application/json", "X-Contrail": "1"};
 let info = {}, schema = [], saved = {}, edits = {}, map = null, pin = null, ring = null;
 const $ = s => document.querySelector(s);
@@ -263,6 +264,9 @@ function locationCard() {
     el("div", {class: "muted"}, "Click the map to move home. The ring is the radius."), box,
     el("div", {class: "grid"}, field(def("lat"), lat), field(def("lon"), lon)));
   for (const d of schema) if (d.group === "location" && !HIDDEN.has(d.key)) sec.append(control(d));
+  if (saved.loc_set)
+    sec.append(el("p", {}, el("a", {href: `${SD_PAGE}#lat=${saved.lat}&lon=${saved.lon}`, target: "_blank", rel: "noopener"},
+      "Build an SD card for this location")));
   return sec;
 }
 

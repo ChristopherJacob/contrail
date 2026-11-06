@@ -55,6 +55,8 @@ Board and the Alert show each airline's real logo. Airline logos are trademarks 
 are shown only to identify airlines; Contrail is not affiliated with any airline. Without one (or for an airline the pack lacks) they show a drawn tail fin in the
 airline's colours, so the card is optional.
 
+The [SD card page](https://christopherjacob.github.io/contrail/sd.html) includes `logos.pak`.
+
 ```bash
 tools/.venv/bin/python -I tools/build_pack.py --logos assets/logos --out logos.pak
 ```
@@ -69,7 +71,10 @@ already fits. Or write it over USB without taking the card out: flash the `cyd_s
 
 With `map.pak` on the card, the Live Map shows the area around home in detail: coastlines and lakes,
 rivers, roads, towns and every public airfield with its runways, at any radius up to 100 nm, in both
-themes. Without it (or when the view reaches past the pack) the map is the built-in one. The pack is
+themes. Without it (or when the view reaches past the pack) the map is the built-in one.
+
+The easiest way to get it is the [SD card page](https://christopherjacob.github.io/contrail/sd.html): pick home,
+and it builds `contrail-sd-card.zip` (`map.pak` and `logos.pak`) in the browser. Or build the pack yourself. The pack is
 built for one home and covers 250 nm around it, about 0.55 MB:
 
 ```bash
