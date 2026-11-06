@@ -15,4 +15,6 @@ tools/.cache/
 /map.pak
 site/shots/
 site/firmware/
+site/mapdata/
+site/py/
 firmware/.cache/
