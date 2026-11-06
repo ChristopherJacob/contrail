@@ -23,24 +23,43 @@ def home_box(lat, lon):
 
 
 def region_files(regions, lat, lon):
-    """[(path, bytes)] under regions that a build for this home reads (index.json must be there already)."""
+    """[(path, size in bytes)] under regions that a build for this home reads (index.json must be there already)."""
     with open(os.path.join(regions, "index.json"), encoding="utf-8") as f:
         return build_map.region_files(json.load(f), home_box(lat, lon))
 
 
+ZIP_TIME = (2020, 1, 1, 0, 0, 0)  # fixed, so the zip doesn't depend on the clock and is reproducible
+
+
 def make(regions, lat, lon, logos, out, progress=None):
-    """Writes the zip; progress(level) before each map level, then progress(len(LEVELS)) before zipping."""
+    """Writes the zip; progress(level) before each map level, then progress(len(LEVELS)) before zipping.
+    A home out of range raises build_map.RangeError (the page shows its message); anything else is a build failure."""
+    if logos and not os.path.isfile(logos):
+        raise FileNotFoundError(f"{logos}: not found")
     box = home_box(lat, lon)
     src = build_map.load_regions(regions, box)
     pak = out + ".map.pak"
-    _, size = build_map.write_pack(pak, lat, lon, build_map.COVER, src, progress)
-    if progress:
-        progress(len(build_map.LEVELS))
-    with zipfile.ZipFile(out, "w", zipfile.ZIP_STORED) as z:  # the packs barely compress
-        z.write(pak, "contrail/map.pak")
-        if logos:
-            z.write(logos, "contrail/logos.pak")
-    os.remove(pak)
+    try:
+        _, size = build_map.write_pack(pak, lat, lon, build_map.COVER, src, progress)
+        if progress:
+            progress(len(build_map.LEVELS))
+        try:
+            with zipfile.ZipFile(out, "w", zipfile.ZIP_STORED) as z:  # the packs barely compress
+                for arcname, path in (("contrail/map.pak", pak), ("contrail/logos.pak", logos)):
+                    if not path:
+                        continue
+                    info = zipfile.ZipInfo(arcname, date_time=ZIP_TIME)
+                    info.compress_type = zipfile.ZIP_STORED
+                    info.external_attr = 0o644 << 16
+                    with open(path, "rb") as f:
+                        z.writestr(info, f.read())
+        except BaseException:
+            if os.path.exists(out):
+                os.remove(out)
+            raise
+    finally:
+        if os.path.exists(pak):
+            os.remove(pak)
     return {"map_bytes": size, "towns": len(src[4]), "airports": len(src[5]), "logos": bool(logos)}
 
 
@@ -54,7 +73,7 @@ def main():
     a = ap.parse_args()
     try:
         s = make(a.regions, a.lat, a.lon, a.logos, a.out, lambda level: print(f"level {level}"))
-    except ValueError as e:
+    except (ValueError, OSError) as e:
         sys.exit(f"error: {e}")
     print(f"{a.out}: map.pak {s['map_bytes'] / 1e6:.2f} MB ({s['towns']} towns, {s['airports']} airports)"
           + (", logos.pak" if s["logos"] else ""))

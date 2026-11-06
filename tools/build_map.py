@@ -218,10 +218,16 @@ def load_sources(cache, box):
     return assemble(box, *read_sources(cache, box))
 
 
+class RangeError(ValueError):
+    """A home the map can't be built for."""
+
+
 def check_box(box):
-    """Raises ValueError for a coverage square the pack format can't hold."""
+    """Raises RangeError for a coverage square the pack format can't hold."""
+    if not all(map(math.isfinite, (box.lat0, box.lat1, box.lon0, box.lon1))):
+        raise RangeError("the home's latitude and longitude must be numbers")
     if box.lon0 < -180 or box.lon1 > 180 or box.lat0 < -85 or box.lat1 > 85:
-        raise ValueError("the coverage square crosses longitude +-180 or latitude +-85; not supported")
+        raise RangeError("the coverage square crosses longitude +-180 or latitude +-85; not supported")
 
 
 # ------------------------------------------------------------------ regions (the SD card page, tools/map_regions.py)
@@ -235,7 +241,7 @@ def cell_range(lo, hi):
 
 
 def region_files(index, box):
-    """[(path, bytes)] a build for this box reads from a regions folder: its cells, then the shared parts they name.
+    """[(path, size in bytes)] a build for this box reads from a regions folder: its cells, then the shared parts they name.
     index.json is not in the list: the caller has it already (it is this function's index)."""
     keys = [f"{cy * REGION_DEG}_{cx * REGION_DEG}" for cy in cell_range(box.lat0, box.lat1)
             for cx in cell_range(box.lon0, box.lon1)]

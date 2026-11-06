@@ -72,19 +72,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Month
+      - name: Month and sources
         id: month
-        run: echo "month=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "month=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
+          echo "sources=$(python -I -c 'import hashlib, json, sys; sys.path.insert(0, "tools"); import build_map; print(hashlib.sha256(json.dumps(build_map.SOURCES, sort_keys=True).encode()).hexdigest()[:12])')" >> "$GITHUB_OUTPUT"
       - name: Cache the map sources
         uses: actions/cache@v4
         with:
           path: tools/.cache/map
-          key: map-sources-${{ steps.month.outputs.month }}
+          key: map-sources-${{ steps.month.outputs.month }}-${{ steps.month.outputs.sources }}
       - name: Regions build the same packs as the sources
         run: python -I tools/map_regions.py --selftest
       - name: Pyodide builds the same pack
         run: |
           python -I tools/map_regions.py --out "$RUNNER_TEMP/mapdata"
           python -I tools/build_map.py --lat 39.4176 --lon -77.3743 --out "$RUNNER_TEMP/native.pak"
-          npm install --prefix "$RUNNER_TEMP/node" pyodide@0.27.7
+          npm install --prefix "$RUNNER_TEMP/node" --no-save --ignore-scripts --no-audit --no-fund pyodide@0.27.7
           node tools/sd_node_test.mjs "$RUNNER_TEMP/node/node_modules/pyodide/pyodide.mjs" "$RUNNER_TEMP/mapdata" "$RUNNER_TEMP/native.pak"

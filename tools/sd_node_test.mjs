@@ -1,5 +1,5 @@
 // Builds KFDK's SD card in Pyodide under Node, the way site/sd-worker.js does, and checks its map.pak against
-// the native build (6c spec §5).
+// the native build and that logos.pak is carried unchanged (6c spec §5).
 //   node tools/sd_node_test.mjs <path to pyodide/pyodide.mjs> <regions folder> <native map.pak>
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -19,18 +19,31 @@ for (const f of ["build_map.py", "gen_map.py", "sd_card.py"]) {
 py.FS.mkdir("/regions");
 py.FS.mount(py.FS.filesystems.NODEFS, { root: resolve(regions) }, "/regions");
 
+const dummyLogos = Buffer.alloc(1000, 0x55);
+py.FS.writeFile("/home/pyodide/logos.pak", dummyLogos);
+
 const sd = py.pyimport("sd_card");
 const levels = [];
 const started = Date.now();
-const summary = sd.make("/regions", 39.4176, -77.3743, null, "/home/pyodide/sd.zip", (level) => levels.push(level))
+const summary = sd.make("/regions", 39.4176, -77.3743, "/home/pyodide/logos.pak", "/home/pyodide/sd.zip", (level) => levels.push(level))
     .toJs({ dict_converter: Object.fromEntries });
 const seconds = (Date.now() - started) / 1000;
-const built = py.runPython(`import zipfile; zipfile.ZipFile("/home/pyodide/sd.zip").read("contrail/map.pak")`).toJs();
+const names = py.runPython(`import zipfile; zipfile.ZipFile("/home/pyodide/sd.zip").namelist()`).toJs();
+const built = py.runPython(`zipfile.ZipFile("/home/pyodide/sd.zip").read("contrail/map.pak")`).toJs();
+const builtLogos = py.runPython(`zipfile.ZipFile("/home/pyodide/sd.zip").read("contrail/logos.pak")`).toJs();
 const native = readFileSync(nativePak);
 
 let ok = true;
 if (Buffer.compare(Buffer.from(built), native) !== 0) {
     console.error(`map.pak differs: ${built.length} bytes from Pyodide, ${native.length} native`);
+    ok = false;
+}
+if (names.join() !== "contrail/map.pak,contrail/logos.pak") {
+    console.error(`zip holds ${names.join()}, expected contrail/map.pak,contrail/logos.pak`);
+    ok = false;
+}
+if (Buffer.compare(Buffer.from(builtLogos), dummyLogos) !== 0) {
+    console.error("logos.pak differs from the file given");
     ok = false;
 }
 if (levels.join() !== "0,1,2,3") {
