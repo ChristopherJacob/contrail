@@ -27,7 +27,8 @@ from build_map import REGION_DEG, Box, cell_range  # noqa: E402
 
 SHARED_POINTS = 2000
 HOMES = (("KFDK", 39.4176, -77.3743), ("Boston", 42.3656, -71.0096), ("Anchorage", 61.1743, -149.9963),
-         ("Amsterdam", 52.3086, 4.7639))
+         ("Amsterdam", 52.3086, 4.7639), ("Sydney", -33.9461, 151.1772),
+         ("Cell edge", 35 + 250 / 60, -100.0))  # the box's south edge lands on 35 degrees, a cell boundary
 
 
 def cell_key(cy, cx):
@@ -48,7 +49,7 @@ def cells_of(rings):
 def dump(path, value):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(value, f, separators=(",", ":"), ensure_ascii=False)
+        json.dump(value, f, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
     return os.path.getsize(path)
 
 
@@ -75,16 +76,22 @@ def split(cache, out):
     for a in airports:
         cell((cell_range(a[3], a[3])[0], cell_range(a[4], a[4])[0]))["airports"].append(a)
 
-    shutil.rmtree(out, ignore_errors=True)
+    if os.path.exists(out) and not os.path.isfile(os.path.join(out, "index.json")):
+        sys.exit(f"error: {out} exists and is not a regions folder (no index.json); not replacing it")
+    tmp = out + ".tmp"  # written beside out, then swapped into place
+    shutil.rmtree(tmp, ignore_errors=True)
     index = {"deg": REGION_DEG, "cells": {}, "shared": {}}
     for key, value in shared.items():
-        index["shared"][key] = dump(os.path.join(out, "shared", key + ".json"), value)
+        index["shared"][key] = dump(os.path.join(tmp, "shared", key + ".json"), value)
     for (cy, cx), c in sorted(cells.items()):
         key = cell_key(cy, cx)
         names = sorted(c.pop("shared"))
-        index["cells"][key] = {"bytes": dump(os.path.join(out, "cells", key + ".json"), c), "shared": names}
-    dump(os.path.join(out, "index.json"), index)
-    search = write_search(cache, os.path.join(out, "search.json"))
+        index["cells"][key] = {"bytes": dump(os.path.join(tmp, "cells", key + ".json"), c), "shared": names}
+    dump(os.path.join(tmp, "index.json"), index)
+    search = write_search(cache, os.path.join(tmp, "search.json"))
+    if os.path.exists(out):
+        shutil.rmtree(out)
+    os.replace(tmp, out)
     total = sum(v["bytes"] for v in index["cells"].values()) + sum(index["shared"].values())
     print(f"{out}: {len(cells)} cells, {len(shared)} shared parts, {total / 1e6:.1f} MB; search {search / 1e6:.1f} MB")
 
@@ -93,21 +100,20 @@ def write_search(cache, path):
     """The page's search index: airports (code, name, town, region, lat, lon) and towns (name, admin1, country,
     lat, lon, population), the towns biggest first."""
     airports = []
+    rank_of = {"large_airport": 0, "medium_airport": 1, "small_airport": 2}
     with open(os.path.join(cache, "airports.csv"), encoding="utf-8") as f:
         for a in csv.DictReader(f):
-            if a["type"] in ("large_airport", "medium_airport"):
-                code = a.get("icao_code") or a.get("gps_code") or a["ident"]
-            elif a["type"] == "small_airport":
-                code = build_map.public_code(a)
-            else:
+            rank = rank_of.get(a["type"])
+            if rank is None:
                 continue
+            code = build_map.airport_name(a, rank)
             try:
                 lat, lon = round(float(a["latitude_deg"]), 4), round(float(a["longitude_deg"]), 4)
             except ValueError:
                 continue
             if code:
                 airports.append([code, a["name"], a["municipality"], a["iso_region"], lat, lon])
-    towns = []
+    towns = []  # GeoNames' UTF-8 name (row[1]); the pack uses the ASCII name (row[2]), as the board's font is ASCII
     with zipfile.ZipFile(os.path.join(cache, "cities5000.zip")) as z:
         with z.open("cities5000.txt") as f:
             for row in csv.reader(io.TextIOWrapper(f, encoding="utf-8"), delimiter="\t"):
@@ -123,10 +129,11 @@ def selftest(cache):
     assert list(cell_range(5.0, 9.99)) == [1]
     assert cells_of([[(-1, -1), (1, 1)]]) == {(-1, -1), (-1, 0), (0, -1), (0, 0)}
     with tempfile.TemporaryDirectory() as tmp:
-        split(cache, tmp)
+        folder = os.path.join(tmp, "mapdata")
+        split(cache, folder)
         for name, lat, lon in HOMES:
             box = Box(lat, lon, build_map.COVER)
-            raw, regions = build_map.load_sources(cache, box), build_map.load_regions(tmp, box)
+            raw, regions = build_map.load_sources(cache, box), build_map.load_regions(folder, box)
             for what, a, b in zip(("land", "lakes", "rivers", "roads", "towns", "airports"), raw, regions):
                 assert a == b, f"{name}: {what} differ ({len(a)} from the sources, {len(b)} from the regions)"
             paks = []
@@ -136,7 +143,8 @@ def selftest(cache):
                 with open(path, "rb") as f:
                     paks.append(f.read())
             assert paks[0] == paks[1], f"{name}: the packs differ"
-            files = build_map.region_files(json.load(open(os.path.join(tmp, "index.json"))), box)
+            with open(os.path.join(folder, "index.json"), encoding="utf-8") as f:
+                files = build_map.region_files(json.load(f), box)
             print(f"{name}: identical, {len(paks[0]) / 1e6:.2f} MB pack from {len(files)} files "
                   f"({sum(n for _, n in files) / 1e6:.1f} MB)")
     print("selftest ok")
@@ -148,11 +156,11 @@ def main():
     ap.add_argument("--cache", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cache", "map"))
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()
+    if not a.selftest and not a.out:
+        ap.error("--out is required")
     build_map.fetch(a.cache, False)
     if a.selftest:
         return selftest(a.cache)
-    if not a.out:
-        ap.error("--out is required")
     split(a.cache, a.out)
 
 

@@ -235,7 +235,8 @@ def cell_range(lo, hi):
 
 
 def region_files(index, box):
-    """[(path, bytes)] a build for this box reads from a regions folder: its cells, then the shared parts they name."""
+    """[(path, bytes)] a build for this box reads from a regions folder: its cells, then the shared parts they name.
+    index.json is not in the list: the caller has it already (it is this function's index)."""
     keys = [f"{cy * REGION_DEG}_{cx * REGION_DEG}" for cy in cell_range(box.lat0, box.lat1)
             for cx in cell_range(box.lon0, box.lon1)]
     keys = [k for k in keys if k in index["cells"]]
@@ -252,7 +253,10 @@ def load_regions(regions, box):
 
     shapes = {name: {} for name in SHAPE_FILES}
     towns, airports = {}, {}
-    for path, _ in region_files(read("index.json"), box):
+    index = read("index.json")
+    if index["deg"] != REGION_DEG:
+        raise ValueError(f"map regions built with {index['deg']}-degree cells; this builder needs {REGION_DEG}")
+    for path, _ in region_files(index, box):
         data = read(path)
         if path.startswith("shared/"):
             shapes[data["layer"]][data["part"][0]] = data["part"]
@@ -265,12 +269,12 @@ def load_regions(regions, box):
             towns[t[0]] = t
         for a in data["airports"]:
             airports[a[0]] = a
-    records = {name: [(i, props, [[tuple(p) for p in r] for r in rings]) for i, props, rings in
-                      (parts[i] for i in sorted(parts))] for name, parts in shapes.items()}
+    records = {name: [(part, props, [[tuple(p) for p in r] for r in rings]) for part, props, rings in
+                      (parts[k] for k in sorted(parts))] for name, parts in shapes.items()}
     return assemble(box, records,
                     [tuple(towns[n]) for n in sorted(towns)],
-                    [(n, rank, name, lat, lon, [tuple(tuple(p) for p in rw) for rw in rws])
-                     for n, rank, name, lat, lon, rws in (airports[k] for k in sorted(airports))])
+                    [(n, rank, ident, lat, lon, [tuple(tuple(p) for p in rw) for rw in rws])
+                     for n, rank, ident, lat, lon, rws in (airports[k] for k in sorted(airports))])
 
 
 # ------------------------------------------------------------------ geometry
