@@ -204,10 +204,10 @@ def assemble(box, shapes, towns, airports):
             roads.append((K_ROAD, int(props.get("scalerank") or 0), part[0]))
 
     town_list = []
-    for _, name, lat, lon, pop in towns:
+    for _, town, lat, lon, pop in towns:
         if box.has(lat, lon):
             rank = next(i for i, floor in enumerate(TOWN_FLOORS) if pop >= floor)
-            town_list.append((rank, pop, name, lat, lon))
+            town_list.append((rank, pop, town, lat, lon))
     town_list.sort(key=lambda t: -t[1])
     airport_list = [(rank, name, lat, lon, rw) for _, rank, name, lat, lon, rw in airports if box.has(lat, lon)]
     airport_list.sort(key=lambda a: a[0])
@@ -222,6 +222,55 @@ def check_box(box):
     """Raises ValueError for a coverage square the pack format can't hold."""
     if box.lon0 < -180 or box.lon1 > 180 or box.lat0 < -85 or box.lat1 > 85:
         raise ValueError("the coverage square crosses longitude +-180 or latitude +-85; not supported")
+
+
+# ------------------------------------------------------------------ regions (the SD card page, tools/map_regions.py)
+
+REGION_DEG = 5
+
+
+def cell_range(lo, hi):
+    """The REGION_DEG cells from lo to hi degrees, both included, as cell numbers (floor(deg / REGION_DEG))."""
+    return range(math.floor(lo / REGION_DEG), math.floor(hi / REGION_DEG) + 1)
+
+
+def region_files(index, box):
+    """[(path, bytes)] a build for this box reads from a regions folder: its cells, then the shared parts they name."""
+    keys = [f"{cy * REGION_DEG}_{cx * REGION_DEG}" for cy in cell_range(box.lat0, box.lat1)
+            for cx in cell_range(box.lon0, box.lon1)]
+    keys = [k for k in keys if k in index["cells"]]
+    shared = sorted({s for k in keys for s in index["cells"][k]["shared"]})
+    return ([(f"cells/{k}.json", index["cells"][k]["bytes"]) for k in keys] +
+            [(f"shared/{s}.json", index["shared"][s]) for s in shared])
+
+
+def load_regions(regions, box):
+    """load_sources from a regions folder (tools/map_regions.py): the same six lists, in the same order."""
+    def read(path):
+        with open(os.path.join(regions, path), encoding="utf-8") as f:
+            return json.load(f)
+
+    shapes = {name: {} for name in SHAPE_FILES}
+    towns, airports = {}, {}
+    for path, _ in region_files(read("index.json"), box):
+        data = read(path)
+        if path.startswith("shared/"):
+            shapes[data["layer"]][data["part"][0]] = data["part"]
+            continue
+        for name, parts in data["shapes"].items():
+            for p in parts:
+                if len(p) == 3:  # [part, props, rings]; [part] alone is in shared/
+                    shapes[name][p[0]] = p
+        for t in data["towns"]:
+            towns[t[0]] = t
+        for a in data["airports"]:
+            airports[a[0]] = a
+    records = {name: [(i, props, [[tuple(p) for p in r] for r in rings]) for i, props, rings in
+                      (parts[i] for i in sorted(parts))] for name, parts in shapes.items()}
+    return assemble(box, records,
+                    [tuple(towns[n]) for n in sorted(towns)],
+                    [(n, rank, name, lat, lon, [tuple(tuple(p) for p in rw) for rw in rws])
+                     for n, rank, name, lat, lon, rws in (airports[k] for k in sorted(airports))])
 
 
 # ------------------------------------------------------------------ geometry
@@ -544,6 +593,7 @@ def main():
     ap.add_argument("--cache", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cache", "map"))
     ap.add_argument("--refresh", action="store_true")
     ap.add_argument("--selftest", action="store_true")
+    ap.add_argument("--regions", help="read a regions folder (tools/map_regions.py) instead of the sources")
     a = ap.parse_args()
     if a.selftest:
         return selftest()
@@ -554,8 +604,11 @@ def main():
         check_box(box)
     except ValueError as e:
         sys.exit(f"error: {e}")
-    fetch(a.cache, a.refresh)
-    src = load_sources(a.cache, box)
+    if a.regions:
+        src = load_regions(a.regions, box)
+    else:
+        fetch(a.cache, a.refresh)
+        src = load_sources(a.cache, box)
     levels, size = write_pack(a.out, a.lat, a.lon, a.cover, src)
     for (max_r, milli, grid, full, tiles), i in zip(levels, range(len(levels))):
         print(f"level {i}: <= {max_r} nm, {milli / 1000:g} deg tiles, {grid.rows}x{grid.cols}, "
