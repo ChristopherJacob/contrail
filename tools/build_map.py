@@ -46,6 +46,10 @@ TOWN_FLOORS = (300000, 100000, 50000, 25000, 10000, 0)
 KIND_NAMES = {K_RING: "rings", K_MAJOR: "major roads", K_ROAD: "roads", K_RIVER: "rivers", K_RUNWAY: "runways",
               K_TOWN: "towns", K_AIRPORT: "airports"}
 MINOR_TYPES = ("Secondary Highway", "Road", "Bypass")
+COVER = 250  # nm from home to each side of the coverage square
+SHAPE_FILES = ("ne_10m_land", "ne_10m_lakes", "ne_10m_lakes_north_america", "ne_10m_rivers_lake_centerlines",
+               "ne_10m_rivers_north_america", "ne_10m_roads")
+KEPT_PROPS = ("scalerank", "type")  # the only shape properties the map reads
 
 
 def crc16(data, crc=0xFFFF):
@@ -90,7 +94,8 @@ class Box:
         return not (max(ys) < self.lat0 or min(ys) > self.lat1 or max(xs) < self.lon0 or min(xs) > self.lon1)
 
 
-def geo_features(path, box):
+def geo_parts(path):
+    """Every polygon (outer ring and holes) or line of a GeoJSON file, in file order, as (properties, rings)."""
     with open(path, encoding="utf-8") as f:
         for feat in json.load(f)["features"]:
             g = feat.get("geometry")
@@ -99,8 +104,7 @@ def geo_features(path, box):
             t, c = g["type"], g["coordinates"]
             parts = {"Polygon": [c], "MultiPolygon": c, "LineString": [[c]], "MultiLineString": [[l] for l in c]}.get(t, [])
             for part in parts:  # polygon: [outer, holes...]; line: [line]
-                if any(box.touches(r) for r in part):
-                    yield feat["properties"], [[(float(p[0]), float(p[1])) for p in r] for r in part]
+                yield feat["properties"], [[(float(p[0]), float(p[1])) for p in r] for r in part]
 
 
 def public_code(a):
@@ -121,33 +125,29 @@ def airport_name(a, rank):
     return code[:20] if code else None
 
 
-def load_sources(cache, box):
-    land, lakes, rivers, roads = [], [], [], []
-    for _, part in geo_features(os.path.join(cache, "ne_10m_land.geojson"), box):
-        land += part  # outer rings and holes alike: the fill is even-odd
-    for name in ("ne_10m_lakes.geojson", "ne_10m_lakes_north_america.geojson"):
-        for _, part in geo_features(os.path.join(cache, name), box):
-            lakes += part
-    for name in ("ne_10m_rivers_lake_centerlines.geojson", "ne_10m_rivers_north_america.geojson"):
-        for props, part in geo_features(os.path.join(cache, name), box):
-            rivers += [(int(props.get("scalerank") or 0), part[0])]
-    for props, part in geo_features(os.path.join(cache, "ne_10m_roads.geojson"), box):
-        t = props.get("type")
-        if t in MAJOR_TYPES:
-            roads.append((K_MAJOR, int(props.get("scalerank") or 0), part[0]))
-        elif t in MINOR_TYPES:
-            roads.append((K_ROAD, int(props.get("scalerank") or 0), part[0]))
+def is_town(row):
+    return row[7].startswith("PPL") and row[7] not in ("PPLX", "PPLQ")
+
+
+def read_sources(cache, box=None):
+    """The map's records, in source order. shapes: {layer: [(part, props, rings)]}, every part with its index in
+    the layer (geo_parts order); towns: [(row, name, lat, lon, population)]; airports: [(row, rank, name, lat, lon,
+    runways)], only those drawn. With a box, only records that could be in it are kept (assemble decides)."""
+    shapes = {}
+    for name in SHAPE_FILES:
+        parts = []
+        for i, (props, rings) in enumerate(geo_parts(os.path.join(cache, name + ".geojson"))):
+            if box is None or any(box.touches(r) for r in rings):
+                parts.append((i, {k: props[k] for k in KEPT_PROPS if props.get(k) is not None}, rings))
+        shapes[name] = parts
 
     towns = []
     with zipfile.ZipFile(os.path.join(cache, "cities5000.zip")) as z:
         with z.open("cities5000.txt") as f:
-            for row in csv.reader(io.TextIOWrapper(f, encoding="utf-8"), delimiter="\t"):
+            for n, row in enumerate(csv.reader(io.TextIOWrapper(f, encoding="utf-8"), delimiter="\t")):
                 lat, lon = float(row[4]), float(row[5])
-                if box.has(lat, lon) and row[7].startswith("PPL") and row[7] not in ("PPLX", "PPLQ"):
-                    pop = int(row[14] or 0)
-                    rank = next(i for i, floor in enumerate(TOWN_FLOORS) if pop >= floor)
-                    towns.append((rank, pop, row[2], lat, lon))
-    towns.sort(key=lambda t: -t[1])
+                if is_town(row) and (box is None or box.has(lat, lon)):
+                    towns.append((n, row[2], lat, lon, int(row[14] or 0)))
 
     runways = {}
     with open(os.path.join(cache, "runways.csv"), encoding="utf-8") as f:
@@ -163,7 +163,7 @@ def load_sources(cache, box):
     airports = []
     rank_of = {"large_airport": 0, "medium_airport": 1, "small_airport": 2}
     with open(os.path.join(cache, "airports.csv"), encoding="utf-8") as f:
-        for a in csv.DictReader(f):
+        for n, a in enumerate(csv.DictReader(f)):
             rank = rank_of.get(a["type"])
             if rank is None:
                 continue
@@ -171,14 +171,57 @@ def load_sources(cache, box):
                 lat, lon = float(a["latitude_deg"]), float(a["longitude_deg"])
             except ValueError:
                 continue
-            if not box.has(lat, lon):
+            if box is not None and not box.has(lat, lon):
                 continue
             ident = airport_name(a, rank)
             if ident is None:
                 continue
-            airports.append((rank, ident[:20], lat, lon, runways.get(a["ident"], [])))
-    airports.sort(key=lambda a: a[0])
-    return land, lakes, rivers, roads, towns, airports
+            airports.append((n, rank, ident[:20], lat, lon, runways.get(a["ident"], [])))
+    return shapes, towns, airports
+
+
+def assemble(box, shapes, towns, airports):
+    """The six lists write_pack takes, for one box, from read_sources' records (or load_regions')."""
+    def touching(name):
+        for _, props, rings in shapes[name]:
+            if any(box.touches(r) for r in rings):
+                yield props, rings
+
+    land, lakes, rivers, roads = [], [], [], []
+    for _, part in touching("ne_10m_land"):
+        land += part  # outer rings and holes alike: the fill is even-odd
+    for name in ("ne_10m_lakes", "ne_10m_lakes_north_america"):
+        for _, part in touching(name):
+            lakes += part
+    for name in ("ne_10m_rivers_lake_centerlines", "ne_10m_rivers_north_america"):
+        for props, part in touching(name):
+            rivers += [(int(props.get("scalerank") or 0), part[0])]
+    for props, part in touching("ne_10m_roads"):
+        t = props.get("type")
+        if t in MAJOR_TYPES:
+            roads.append((K_MAJOR, int(props.get("scalerank") or 0), part[0]))
+        elif t in MINOR_TYPES:
+            roads.append((K_ROAD, int(props.get("scalerank") or 0), part[0]))
+
+    town_list = []
+    for _, name, lat, lon, pop in towns:
+        if box.has(lat, lon):
+            rank = next(i for i, floor in enumerate(TOWN_FLOORS) if pop >= floor)
+            town_list.append((rank, pop, name, lat, lon))
+    town_list.sort(key=lambda t: -t[1])
+    airport_list = [(rank, name, lat, lon, rw) for _, rank, name, lat, lon, rw in airports if box.has(lat, lon)]
+    airport_list.sort(key=lambda a: a[0])
+    return land, lakes, rivers, roads, town_list, airport_list
+
+
+def load_sources(cache, box):
+    return assemble(box, *read_sources(cache, box))
+
+
+def check_box(box):
+    """Raises ValueError for a coverage square the pack format can't hold."""
+    if box.lon0 < -180 or box.lon1 > 180 or box.lat0 < -85 or box.lat1 > 85:
+        raise ValueError("the coverage square crosses longitude +-180 or latitude +-85; not supported")
 
 
 # ------------------------------------------------------------------ geometry
@@ -425,10 +468,13 @@ def build_level(grid, level, src, metres):
     return full, encoded
 
 
-def write_pack(path, lat, lon, cover_nm, src):
+def write_pack(path, lat, lon, cover_nm, src, progress=None):
+    """Writes the pack for one home; progress(level) is called before each level is built (the SD card page shows it)."""
     box = Box(lat, lon, cover_nm)
     levels = []
     for i, (max_r, milli, metres) in enumerate(LEVELS):
+        if progress:
+            progress(i)
         grid = Grid(box, milli)
         full, tiles = build_level(grid, i, src, metres)
         levels.append((max_r, milli, grid, full, tiles))
@@ -493,7 +539,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--lat", type=float)
     ap.add_argument("--lon", type=float)
-    ap.add_argument("--cover", type=int, default=250, help="nm from home to each side of the square")
+    ap.add_argument("--cover", type=int, default=COVER, help="nm from home to each side of the square")
     ap.add_argument("--out", default="map.pak")
     ap.add_argument("--cache", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cache", "map"))
     ap.add_argument("--refresh", action="store_true")
@@ -504,8 +550,10 @@ def main():
     if a.lat is None or a.lon is None:
         ap.error("--lat and --lon are required")
     box = Box(a.lat, a.lon, a.cover)
-    if box.lon0 < -180 or box.lon1 > 180 or box.lat0 < -85 or box.lat1 > 85:
-        sys.exit("error: the coverage square crosses longitude +-180 or latitude +-85; not supported")
+    try:
+        check_box(box)
+    except ValueError as e:
+        sys.exit(f"error: {e}")
     fetch(a.cache, a.refresh)
     src = load_sources(a.cache, box)
     levels, size = write_pack(a.out, a.lat, a.lon, a.cover, src)
