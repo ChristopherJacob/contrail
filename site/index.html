@@ -146,6 +146,41 @@
     <p>Map data: Natural Earth, OurAirports, GeoNames.</p>
     <p>Inter font &copy; The Inter Project Authors and Barlow font &copy; The Barlow Project Authors, both under the
       <a href="https://github.com/ChristopherJacob/contrail/blob/main/tools/fonts/OFL.txt">SIL Open Font License 1.1</a>.</p>
+    <p class="made">
+      <svg class="flag" viewBox="0 0 60 40" role="img" aria-label="Flag of Maryland">
+        <defs>
+          <!-- Calvert: gold and black pales, counterchanged on a bend -->
+          <clipPath id="md-bend"><polygon points="0,0 7,0 30,15 30,20 23,20 0,5"/></clipPath>
+          <g id="md-calvert">
+            <rect width="30" height="20" fill="#000"/>
+            <path d="M0 0h5v20H0zM10 0h5v20h-5zM20 0h5v20h-5z" fill="#f1c400"/>
+            <g clip-path="url(#md-bend)">
+              <rect width="30" height="20" fill="#f1c400"/>
+              <path d="M0 0h5v20H0zM10 0h5v20h-5zM20 0h5v20h-5z" fill="#000"/>
+            </g>
+          </g>
+          <!-- Crossland: quartered white and red, a cross bottony counterchanged -->
+          <clipPath id="md-white"><path d="M0 0h15v10H0zM15 10h15v10H15z"/></clipPath>
+          <clipPath id="md-red"><path d="M15 0h15v10H15zM0 10h15v10H0z"/></clipPath>
+          <g id="md-cross">
+            <path d="M13.6 3h2.8v14h-2.8zM5 8.6h20v2.8H5z"/>
+            <circle cx="15" cy="3" r="1.8"/><circle cx="15" cy="17" r="1.8"/>
+            <circle cx="5" cy="10" r="1.8"/><circle cx="25" cy="10" r="1.8"/>
+          </g>
+          <g id="md-crossland">
+            <rect width="30" height="20" fill="#fff"/>
+            <path d="M15 0h15v10H15zM0 10h15v10H0z" fill="#c8102e"/>
+            <use href="#md-cross" fill="#c8102e" clip-path="url(#md-white)"/>
+            <use href="#md-cross" fill="#fff" clip-path="url(#md-red)"/>
+          </g>
+        </defs>
+        <use href="#md-calvert"/>
+        <use href="#md-crossland" x="30"/>
+        <use href="#md-crossland" y="20"/>
+        <use href="#md-calvert" x="30" y="20"/>
+      </svg>
+      Made in Frederick, Maryland
+    </p>
   </div>
 </footer>
 </body>

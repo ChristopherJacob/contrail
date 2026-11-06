@@ -128,6 +128,8 @@ code { font: 14px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; back
 /* Footer */
 footer { border-top: 1px solid rgba(43, 54, 112, .6); padding: 28px 0 40px; color: var(--dim); font-size: 14px; }
 footer p { margin: 0 0 .6em; }
+footer .made { display: flex; align-items: center; gap: 6px; margin-top: 1.2em; color: var(--soft); }
+footer .flag { width: 18px; height: 12px; flex: none; border-radius: 1px; box-shadow: 0 0 0 .5px rgba(255, 255, 255, .15); }
 
 @media (max-width: 760px) {
     .hero .wrap { grid-template-columns: 1fr; }
