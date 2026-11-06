@@ -197,6 +197,7 @@ function setBusy(on) {
     for (const el of [q, lat, lon, locate]) el.disabled = on;
     working.hidden = !on;
     buildButton.disabled = !canBuild();
+    if (!on) readLink();  // a board link that arrived during the build
 }
 
 function show(fraction, text) {
@@ -277,6 +278,7 @@ buildButton.addEventListener("click", () => {
 function readLink() {
     for (const params of [new URLSearchParams(location.hash.slice(1)), new URLSearchParams(location.search)]) {
         if (params.has("lat") && params.has("lon")) {
+            if (busy) return;  // left in the address; setBusy(false) reads it when the build ends
             setHome(params.get("lat"), params.get("lon"));
             history.replaceState(null, "", location.pathname);
             return;

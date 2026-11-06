@@ -42,7 +42,7 @@ const lastLine = (e) => String(e?.message || e || "unknown error").trim().split(
 
 onmessage = async ({ data: { lat, lon } }) => {
     try {
-        postMessage({ step: "python" });
+        if (!ready) postMessage({ step: "python" });
         ready ??= start();
         const { py, sd } = await ready.catch((e) => { ready = null; throw e; });
 

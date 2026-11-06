@@ -41,7 +41,7 @@ Out of scope: writing the card from the browser, uploading packs to the board ov
 The Pages workflow restores the raw sources from the Actions cache (key: the `SOURCES` table's hash; a miss
 downloads them with `build_map.py`'s own `fetch`) and runs `tools/map_regions.py <cache> site/mapdata`.
 
-- **Cells:** 5° × 5°, named `r<lat0>_<lon0>.json` by their south-west corner (`r35_-80.json`). A cell file exists
+- **Cells:** 5° × 5°, named `cells/<lat0>_<lon0>.json` by their south-west corner (`cells/35_-80.json`). A cell file exists
   only when something lies in it.
 - **Shapes (the six GeoJSON layers):** split into the parts `geo_features` iterates (a polygon with its holes, or
   one line), each with its layer, its index in the layer's iteration order, the properties the builder reads
@@ -144,6 +144,9 @@ population then row; airports by rank then row), filtering with the same `Box.to
 - **Privacy:** the board links to `sd.html#lat=…&lon=…` (a fragment, never sent to the server); the page also
   accepts `?lat=&lon=`, reads either, then clears it from the address bar, and sends no referrer. Which region
   files are fetched reveals the rough area (a 5° cell or a few), not the location; the page says so.
+- **Manifest:** `index.json` holds the cell size (`deg`), each cell's size and the shared parts it names, and
+  the shared parts' sizes; not the sources' versions and dates (§2). The cache key (month and `SOURCES`) is
+  what keeps the data current.
 - **Later:** a faster build (the browser takes about twice the native 7.7 s; any speed-up must keep the bytes);
   the Actions Node 20 deprecations noted in 6a §9.
 

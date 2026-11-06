@@ -137,7 +137,9 @@ macOS has it already; on Linux install the headers first (`sudo apt install zlib
 `tools/make_fat_fixtures.sh` rebuilds those images, on macOS only.
 
 GitHub Actions runs the tests, the tool self-tests and every board build on each push and pull request
-(`.github/workflows/ci.yml`).
+(`.github/workflows/ci.yml`). Its `pack-builder` job checks the SD card page's map: `tools/map_regions.py
+--selftest` builds packs for several homes from the site's map regions and from the sources and compares them
+byte for byte, and `tools/sd_node_test.mjs` does the same build in Pyodide under Node.
 
 ## Releasing
 
@@ -180,11 +182,16 @@ tools/                   generators: fonts, CA bundle, map, stars, trees, gen_sh
 tools/build_pack.py      assets/logos -> logos.pak
 tools/build_map.py       Natural Earth, OurAirports and GeoNames around home -> map.pak
 tools/map_preview.py     map.pak -> PNG, the detailed map as the board draws it
+tools/map_regions.py     the map sources in 5-degree cells for the SD card page (site/mapdata)
+tools/sd_card.py         map regions -> contrail-sd-card.zip, as the SD card page makes it
+tools/sd_site.sh         puts the SD card page's map data and Python on the site
+tools/sd_node_test.mjs   the SD card page's build in Pyodide under Node, checked against build_map.py
 tools/fetch_logos.py     one-time download of assets/logos
 tools/sd_upload.py       write a file to the board's SD card over USB (with the cyd_sdload env)
 tools/make_fat_fixtures.sh  rebuild the FAT reader's test disk images (macOS)
 docs/superpowers         specs and plans
-site/                    the GitHub Pages site (showcase, installer); screenshots and install images added by Actions
+site/                    the GitHub Pages site (showcase, installer, SD card page); screenshots, install images,
+                         logos.pak and map data added by Actions
 .github/workflows        CI, release and Pages workflows
 tools/screenshots.sh     simulator screenshots of every screen and theme
 tools/release_assets.sh  release files from the cyd2usb and cyd_microusb builds
