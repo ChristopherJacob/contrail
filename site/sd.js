@@ -1,12 +1,13 @@
-// SD card page (6c spec §3): picks home (search, the browser's location, typed coordinates or ?lat=&lon=), checks
-// the map can cover it, and runs sd-worker.js, which builds contrail-sd-card.zip with tools/build_map.py in
-// Pyodide. Nothing about the location leaves the browser: every request is for a fixed file of this site or the CDN.
+// SD card page (6c spec §3): picks home (search, the browser's location, typed coordinates, or #lat=&lon= / ?lat=&lon=),
+// checks the map can cover it, and runs sd-worker.js, which builds contrail-sd-card.zip with tools/build_map.py in
+// Pyodide. The exact location stays in the browser: every request is for a fixed file of this site or the CDN, and
+// which map region files are fetched reveals only the rough area.
 const COVER_NM = 250;  // build_map.COVER
 const LEVELS = 3;      // build_map.LEVELS
 
 const $ = (id) => document.getElementById(id);
 const q = $("q"), results = $("results"), lat = $("lat"), lon = $("lon"), near = $("near"), homeNote = $("home-note");
-const buildButton = $("build"), working = $("working"), bar = $("bar"), step = $("step"), failed = $("failed");
+const locate = $("locate"), buildButton = $("build"), working = $("working"), bar = $("bar"), step = $("step"), failed = $("failed");
 const result = $("result"), download = $("download"), summary = $("summary");
 
 const mb = (n) => `${(n / 1e6).toFixed(1)} MB`;
@@ -39,22 +40,34 @@ function coverable([a, b]) {
     return a - dlat >= -85 && a + dlat <= 85 && b - dlon >= -180 && b + dlon <= 180;
 }
 
+function canBuild() {
+    const h = home();
+    return !busy && h !== null && coverable(h);
+}
+
 const townLabel = (t) => [t[0], /^[A-Z]+$/.test(t[1]) ? t[1] : "", t[2]].filter(Boolean).join(", ");
 
+// The nearest town names a suburb as readily as a city, so among the towns not much farther than the nearest
+// (within 2 * d0 + 1 nm) the most populous one wins. Towns are [name, admin, country, lat, lon, population].
 async function nearest([a, b]) {
     const { towns } = await loadSearch();
     const k = Math.cos(a * Math.PI / 180);
+    const nm = (t) => 60 * Math.hypot(t[3] - a, (t[4] - b) * k);
+    let d0 = Infinity;
+    for (const t of towns) d0 = Math.min(d0, nm(t));
     let best = null, bestD = Infinity;
     for (const t of towns) {
-        const d = (t[3] - a) ** 2 + ((t[4] - b) * k) ** 2;
-        if (d < bestD) best = t, bestD = d;
+        const d = nm(t);
+        if (d <= 2 * d0 + 1 && (!best || t[5] > best[5])) best = t, bestD = d;
     }
-    return best && { label: townLabel(best), nm: 60 * Math.sqrt(bestD) };
+    return best && { label: townLabel(best), nm: bestD };
 }
 
 let checked = 0;  // ignores a slow "near" answer for a home that has changed since
 async function update() {
+    const ticket = ++checked;
     result.hidden = true;
+    if (zipUrl) URL.revokeObjectURL(zipUrl), zipUrl = null;
     failed.hidden = true;
     const h = home();
     homeNote.hidden = true;
@@ -74,8 +87,7 @@ async function update() {
         homeNote.hidden = false;
         return;
     }
-    buildButton.disabled = busy;
-    const ticket = ++checked;
+    buildButton.disabled = !canBuild();
     try {
         const n = await nearest(h);
         if (ticket === checked && n) near.textContent = n.nm < 1 ? `In ${n.label}` : `Near ${n.label} (${Math.round(n.nm)} nm)`;
@@ -83,6 +95,7 @@ async function update() {
 }
 
 function setHome(a, b) {
+    if (busy) return;  // a location answer that arrives mid-build waits for the next pick
     lat.value = a;
     lon.value = b;
     update();
@@ -116,6 +129,7 @@ function showResults(hits) {
             q.value = h.label;
             results.hidden = true;
             setHome(h.a, h.b);
+            q.focus();  // the picked button is hidden now
         });
         const li = document.createElement("li");
         li.append(b);
@@ -123,6 +137,8 @@ function showResults(hits) {
     }));
     results.hidden = hits.length === 0;
 }
+
+const resultButtons = () => [...results.querySelectorAll("button")];
 
 q.addEventListener("focus", () => loadSearch().catch(() => {}));
 q.addEventListener("input", async () => {
@@ -137,13 +153,32 @@ q.addEventListener("input", async () => {
     }
 });
 q.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") results.querySelector("button")?.click();
-    if (e.key === "Escape") results.hidden = true;
+    if (e.key === "Enter" && !results.hidden) resultButtons()[0]?.click();
+    else if (e.key === "ArrowDown" && !results.hidden && resultButtons().length) {
+        e.preventDefault();
+        resultButtons()[0].focus();
+    } else if (e.key === "Escape") results.hidden = true;
 });
+results.addEventListener("keydown", (e) => {
+    const buttons = resultButtons(), i = buttons.indexOf(document.activeElement);
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        if (e.key === "ArrowUp" && i <= 0) q.focus();
+        else buttons[Math.min(i + (e.key === "ArrowDown" ? 1 : -1), buttons.length - 1)]?.focus();
+    } else if (e.key === "Escape") {
+        results.hidden = true;
+        q.focus();
+    }
+});
+for (const el of [q, results]) {
+    el.addEventListener("focusout", (e) => {
+        if (!q.contains(e.relatedTarget) && !results.contains(e.relatedTarget)) results.hidden = true;
+    });
+}
 
 // ---------------------------------------------------------------- location
 
-$("locate").addEventListener("click", () => {
+locate.addEventListener("click", () => {
     if (!navigator.geolocation) return locationUnavailable();
     navigator.geolocation.getCurrentPosition(
         (p) => setHome(p.coords.latitude.toFixed(3), p.coords.longitude.toFixed(3)),
@@ -156,6 +191,13 @@ function locationUnavailable() {
 }
 
 // ---------------------------------------------------------------- build
+
+function setBusy(on) {
+    busy = on;
+    for (const el of [q, lat, lon, locate]) el.disabled = on;
+    working.hidden = !on;
+    buildButton.disabled = !canBuild();
+}
 
 function show(fraction, text) {
     bar.value = fraction;
@@ -172,9 +214,8 @@ function onMessage({ data: m }) {
 }
 
 function finished({ zip, summary: s }) {
-    busy = false;
-    working.hidden = true;
-    buildButton.disabled = !home();
+    setBusy(false);
+    step.textContent = "";
     buildButton.textContent = "Build the SD card";
     if (zipUrl) URL.revokeObjectURL(zipUrl);
     zipUrl = URL.createObjectURL(new Blob([zip], { type: "application/zip" }));
@@ -183,12 +224,12 @@ function finished({ zip, summary: s }) {
     summary.textContent = `map.pak: ${s.towns.toLocaleString()} towns and ${s.airports.toLocaleString()} airports within 250 nm. ` +
         (s.logos ? "logos.pak: included." : "logos.pak: not available yet (no release); the card works without it.");
     result.hidden = false;
+    download.focus();
 }
 
 function stopped({ error, what }) {
-    busy = false;
-    working.hidden = true;
-    buildButton.disabled = !home();
+    setBusy(false);
+    step.textContent = "";
     buildButton.textContent = "Try again";
     failed.replaceChildren();
     if (error === "range") {  // the builder's own check disagreed with coverable(): nothing to retry for this home
@@ -207,23 +248,40 @@ function stopped({ error, what }) {
     failed.hidden = false;
 }
 
+function workerFailed() {
+    worker?.terminate();
+    worker = null;
+    if (busy) stopped({ error: "load", what: "the builder" });
+}
+
 buildButton.addEventListener("click", () => {
     const h = home();
-    if (!h || busy) return;
-    busy = true;
-    buildButton.disabled = true;
+    if (!canBuild()) return;
+    setBusy(true);
     result.hidden = failed.hidden = true;
-    working.hidden = false;
+    results.hidden = true;
     show(0, "Starting…");
     if (!worker) {
         worker = new Worker("sd-worker.js");
         worker.onmessage = onMessage;
-        worker.onerror = () => { worker = null; stopped({ error: "load", what: "the builder" }); };
+        worker.onerror = workerFailed;
+        worker.onmessageerror = workerFailed;
     }
     worker.postMessage({ lat: h[0], lon: h[1] });
 });
 
-// ---------------------------------------------------------------- ?lat=&lon= (the board's web page links here)
+// ---------------------------------------------------------------- #lat=&lon= (the board's web page links here)
+// The fragment never reaches the server; ?lat=&lon= is accepted too. Either way the address is cleaned afterwards,
+// so the coordinates don't linger in the address bar, history or bookmarks.
 
-const params = new URLSearchParams(location.search);
-if (params.has("lat") && params.has("lon")) setHome(params.get("lat"), params.get("lon"));
+function readLink() {
+    for (const params of [new URLSearchParams(location.hash.slice(1)), new URLSearchParams(location.search)]) {
+        if (params.has("lat") && params.has("lon")) {
+            setHome(params.get("lat"), params.get("lon"));
+            history.replaceState(null, "", location.pathname);
+            return;
+        }
+    }
+}
+readLink();
+addEventListener("hashchange", readLink);  // a link followed while the page is already open

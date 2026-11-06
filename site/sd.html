@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
 <title>Contrail SD card</title>
 <meta name="description" content="Build a microSD card for Contrail in the browser: the detailed Live Map for your home and real airline logos.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -27,32 +28,33 @@
     <div class="wrap">
       <h1>SD card</h1>
       <p class="lead">Make a microSD card with the detailed Live Map for your home and real airline logos. It's all
-        built here in the browser; your location never leaves this computer.</p>
+        built here in the browser. Your exact location stays on this computer; the page downloads only the map data
+        for your part of the world.</p>
 
       <div id="builder">
         <div class="panel">
-          <h3>1. Where is home?</h3>
+          <h2>1. Where is home?</h2>
           <label class="field" for="q">Search for an airport code or a town</label>
           <input class="input" id="q" type="search" autocomplete="off" spellcheck="false" placeholder="KFDK or Frederick"
                  aria-controls="results">
-          <ul class="results" id="results" hidden></ul>
+          <ul class="results" id="results" aria-label="Search results" hidden></ul>
           <div class="row">
             <label class="field">Latitude <input class="input" id="lat" inputmode="decimal" autocomplete="off" placeholder="39.4176"></label>
             <label class="field">Longitude <input class="input" id="lon" inputmode="decimal" autocomplete="off" placeholder="-77.3743"></label>
             <button class="btn ghost" id="locate" type="button">Use my location</button>
           </div>
           <p class="muted near" id="near" aria-live="polite"></p>
-          <p class="note warn" id="home-note" hidden></p>
+          <p class="note warn" id="home-note" role="alert" hidden></p>
         </div>
 
         <div class="panel">
-          <h3>2. Build</h3>
+          <h2>2. Build</h2>
           <button class="btn" id="build" type="button" disabled>Build the SD card</button>
           <div id="working" hidden>
-            <progress id="bar" max="1" value="0"></progress>
-            <p class="status" id="step" aria-live="polite"></p>
+            <progress id="bar" max="1" value="0" aria-label="Build progress"></progress>
           </div>
-          <p class="note warn" id="failed" hidden></p>
+          <p class="status" id="step" aria-live="polite"></p>
+          <p class="note warn" id="failed" role="alert" hidden></p>
           <div id="result" hidden>
             <a class="btn" id="download" download="contrail-sd-card.zip">Download contrail-sd-card.zip</a>
             <p class="muted summary" id="summary"></p>

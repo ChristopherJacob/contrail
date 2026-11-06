@@ -20,7 +20,7 @@ async function download(url, what) {
     return new Uint8Array(await r.arrayBuffer());
 }
 
-let ready = null;  // Pyodide with the builder loaded, once per page
+let ready = null;  // {py, sd}: Pyodide with the builder imported, once per page
 
 async function start() {
     try {
@@ -34,20 +34,22 @@ async function start() {
     }
     for (const d of ["/regions", "/regions/cells", "/regions/shared"]) py.FS.mkdir(d);
     py.FS.writeFile("/regions/index.json", await download("mapdata/index.json", "the map data"));
-    return py;
+    return { py, sd: py.pyimport("sd_card") };
 }
 
 const have = (py, path) => py.FS.analyzePath(path).exists;
-const lastLine = (e) => String(e.message || e).trim().split("\n").pop();
+const lastLine = (e) => String(e?.message || e || "unknown error").trim().split("\n").pop() || "unknown error";
 
 onmessage = async ({ data: { lat, lon } }) => {
     try {
         postMessage({ step: "python" });
         ready ??= start();
-        const py = await ready.catch((e) => { ready = null; throw e; });
-        const sd = py.pyimport("sd_card");
+        const { py, sd } = await ready.catch((e) => { ready = null; throw e; });
 
-        const files = sd.region_files("/regions", lat, lon).toJs();
+        // Region files stay in /regions after a build: a cache for the next build near the same home.
+        const filesProxy = sd.region_files("/regions", lat, lon);
+        const files = filesProxy.toJs();
+        filesProxy.destroy();
         const total = files.reduce((n, [, bytes]) => n + bytes, 0);
         let got = 0;
         postMessage({ step: "data", got, total });
@@ -68,14 +70,15 @@ onmessage = async ({ data: { lat, lon } }) => {
         const logos = have(py, `${HOME}/logos.pak`) ? `${HOME}/logos.pak` : null;
 
         postMessage({ step: "build", level: 0 });
-        const summary = sd.make("/regions", lat, lon, logos, `${HOME}/sd.zip`, (level) => postMessage({ step: "build", level }))
-            .toJs({ dict_converter: Object.fromEntries });
+        const made = sd.make("/regions", lat, lon, logos, `${HOME}/sd.zip`, (level) => postMessage({ step: "build", level }));
+        const summary = made.toJs({ dict_converter: Object.fromEntries });
+        made.destroy();
         const zip = py.FS.readFile(`${HOME}/sd.zip`);
         py.FS.unlink(`${HOME}/sd.zip`);
         postMessage({ done: true, zip, summary }, [zip.buffer]);
-    } catch (e) {
+    } catch (e) {  // every failure posts one error, so the page never waits forever
         if (e instanceof LoadError) postMessage({ error: "load", what: e.message });
-        else if (e.type === "RangeError") postMessage({ error: "range", what: lastLine(e).replace(/^[\w.]*RangeError: /, "") });
+        else if (e?.type === "RangeError") postMessage({ error: "range", what: lastLine(e).replace(/^[\w.]*RangeError: /, "") });
         else postMessage({ error: "build", what: lastLine(e) });
     }
 };
