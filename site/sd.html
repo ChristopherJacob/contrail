@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Contrail SD card</title>
+<meta name="description" content="Build a microSD card for Contrail in the browser: the detailed Live Map for your home and real airline logos.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+<script type="module" src="sd.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="favicon.svg" alt="">Contrail</a>
+    <nav aria-label="Site">
+      <a href="./">Showcase</a>
+      <a href="install.html">Install</a>
+      <a href="sd.html" aria-current="page">SD card</a>
+      <a href="https://github.com/ChristopherJacob/contrail">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section>
+    <div class="wrap">
+      <h1>SD card</h1>
+      <p class="lead">Make a microSD card with the detailed Live Map for your home and real airline logos. It's all
+        built here in the browser. Your exact location stays on this computer; the page downloads only the map data
+        for your part of the world.</p>
+
+      <div id="builder">
+        <div class="panel">
+          <h2>1. Where is home?</h2>
+          <label class="field" for="q">Search for an airport code or a town</label>
+          <input class="input" id="q" type="search" autocomplete="off" spellcheck="false" placeholder="KFDK or Frederick"
+                 aria-controls="results">
+          <ul class="results" id="results" aria-label="Search results" hidden></ul>
+          <div class="row">
+            <label class="field">Latitude <input class="input" id="lat" inputmode="decimal" autocomplete="off" placeholder="39.4176"></label>
+            <label class="field">Longitude <input class="input" id="lon" inputmode="decimal" autocomplete="off" placeholder="-77.3743"></label>
+            <button class="btn ghost" id="locate" type="button">Use my location</button>
+          </div>
+          <p class="muted near" id="near" aria-live="polite"></p>
+          <p class="note warn" id="home-note" role="alert" hidden></p>
+        </div>
+
+        <div class="panel">
+          <h2>2. Build</h2>
+          <button class="btn" id="build" type="button" disabled>Build the SD card</button>
+          <div id="working" hidden>
+            <progress id="bar" max="1" value="0" aria-label="Build progress"></progress>
+          </div>
+          <p class="status" id="step" aria-live="polite"></p>
+          <p class="note warn" id="failed" role="alert" hidden></p>
+          <div id="result" hidden>
+            <a class="btn" id="download" download="contrail-sd-card.zip">Download contrail-sd-card.zip</a>
+            <p class="muted summary" id="summary"></p>
+          </div>
+        </div>
+      </div>
+      <p class="note warn" id="unsupported" hidden>This page needs a browser with Web Workers and WebAssembly, such as a
+        current Chrome, Edge, Firefox or Safari.</p>
+
+      <h2>3. Put it on the card</h2>
+      <ol class="steps">
+        <li><b>Use a FAT32 microSD card.</b> Most cards up to 32 GB come that way. Bigger cards are usually exFAT,
+          which the board can't read: format them as FAT32 first (FAT16 works too).</li>
+        <li><b>Unzip <code>contrail-sd-card.zip</code></b> onto the card, so the card has a <code>contrail</code>
+          folder at the top holding <code>map.pak</code> and <code>logos.pak</code>.</li>
+        <li><b>Put the card in the board and restart it.</b> The Live Map draws the detailed map while home and
+          the radius lie inside the map's 250 nm; the Firmware card on the board's web page says which map it
+          uses.</li>
+        <li><b>Moved house?</b> Build the card again for the new home.</li>
+      </ol>
+      <p class="muted">Prefer the command line? <code>tools/build_map.py</code> in the
+        <a href="https://github.com/ChristopherJacob/contrail#detailed-map">repository</a> makes the same map.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Contrail is free software under the <a href="https://github.com/ChristopherJacob/contrail/blob/main/LICENSE">GPL-3.0</a>.</p>
+    <p>Airline logos are trademarks of their respective owners and are shown only to identify airlines; Contrail
+      is not affiliated with any airline.</p>
+    <p>Map data: <a href="https://www.naturalearthdata.com/">Natural Earth</a> (public domain),
+      <a href="https://ourairports.com/data/">OurAirports</a> (public domain) and
+      <a href="https://www.geonames.org/">GeoNames</a> (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>).
+      Built with <a href="https://pyodide.org/">Pyodide</a>.</p>
+  </div>
+</footer>
+</body>
+</html>

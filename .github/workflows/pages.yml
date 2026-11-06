@@ -38,9 +38,23 @@ jobs:
         run: pio run -e sim
       - name: Screenshots
         run: tools/screenshots.sh firmware/.pio/build/sim/program site/shots
+      # The map sources (about 106 MB) are kept a month: OurAirports and GeoNames change daily, Natural Earth is
+      # pinned. A new month or a changed SOURCES table downloads them again.
+      - name: Month and sources
+        id: month
+        run: |
+          echo "month=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
+          echo "sources=$(python -I -c 'import hashlib, json, sys; sys.path.insert(0, "tools"); import build_map; print(hashlib.sha256(json.dumps(build_map.SOURCES, sort_keys=True).encode()).hexdigest()[:12])')" >> "$GITHUB_OUTPUT"
+      - name: Cache the map sources
+        uses: actions/cache@v4
+        with:
+          path: tools/.cache/map
+          key: map-sources-${{ steps.month.outputs.month }}-${{ steps.month.outputs.sources }}
+      - name: SD card page data
+        run: tools/sd_site.sh site
       # GitHub's release downloads allow no cross-origin reads, so ESP Web Tools can't fetch them from the page:
-      # the latest release's install images are served from the site itself (see site/install.js).
-      - name: Latest release's install images
+      # the latest release's install images and logos.pak are served from the site itself (see site/install.js).
+      - name: Latest release's install images and logos
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -50,8 +64,9 @@ jobs:
             tag="$(jq -r .tag_name <<<"$body")"
             [ -n "$tag" ] && [ "$tag" != null ] || { echo "latest release has no tag_name" >&2; exit 1; }
             gh release download "$tag" --repo "$GITHUB_REPOSITORY" --dir site/firmware \
-              --pattern contrail-cyd2usb-install.bin --pattern contrail-cyd_microusb-install.bin
+              --pattern contrail-cyd2usb-install.bin --pattern contrail-cyd_microusb-install.bin --pattern logos.pak
             ls site/firmware/contrail-cyd2usb-install.bin site/firmware/contrail-cyd_microusb-install.bin
+            [ -f site/firmware/logos.pak ] || echo "release has no logos.pak; the SD card page builds the map alone"
             sed -i "s/\"version\": \"latest\"/\"version\": \"${tag#v}\"/" site/manifest-*.json
             printf '{"tag": "%s"}\n' "$tag" > site/firmware/release.json
           elif grep -q '(HTTP 404)' api.err; then
@@ -62,7 +77,7 @@ jobs:
             exit 1
           fi
           rm -f api.err
-          ls -l site site/shots site/firmware
+          ls -l site site/shots site/firmware site/py && du -sh site/mapdata
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
