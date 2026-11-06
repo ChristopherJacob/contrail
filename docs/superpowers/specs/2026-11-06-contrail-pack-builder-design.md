@@ -1,7 +1,7 @@
 # Contrail Sub-project 6c — SD Card Pack Builder in the Browser
 
 Date: 2026-11-06
-Status: Design approved, not built.
+Status: Built on `pack-builder`; the board checks wait for the developer. See §9 for what differs from the design.
 Parent: `2026-10-30-contrail-requirements.md` ("Web flasher site": "SD card pack builder (map for your area,
 logos) downloaded as a zip"). Builds on 5a (`logos.pak`), 5b (`map.pak`, `tools/build_map.py`) and 6a (the site,
 the Pages workflow). 6b (browser simulator) and 6d (animated previews) are separate.
@@ -114,3 +114,36 @@ population then row; airports by rank then row), filtering with the same `Box.to
   message, a full build, the zip's contents and names.
 - **Board (developer):** a downloaded zip on the card, the detailed map on the Live Map. Recorded in
   `HARDWARE_TESTING.md`; it can wait for the developer.
+
+## 9. As built
+
+- **Records and `assemble`:** `build_map.py`'s loading was split into `read_sources(cache, box=None)` (every shape
+  part, town and airport, each with its position in the sources) and `assemble(box, …)` (the filtering and
+  ordering), which both `load_sources` and `load_regions` call. Packs from the sources were unchanged by the
+  split (same SHA-1 for KFDK and EHAM).
+- **Regions:** 2,237 cells, 18 shared parts (above 2,000 points), 70.7 MB, plus `search.json` (3.9 MB) and
+  `index.json`; 78 MB on the site. A home needs 7-14 files, 2.3-3.9 MB. `split` builds into `<out>.tmp` and swaps
+  it into place, refusing to replace a folder without `index.json`. `load_regions` refuses regions built with
+  another cell size.
+- **Parity:** `map_regions.py --selftest` builds six homes both ways (KFDK, Boston, Anchorage, Amsterdam, Sydney
+  and one whose square's edge lies on a cell boundary) and compares the lists and the packs; a review also
+  checked 57 homes (southern hemisphere, edges on multiples of 5°, ±85°/±180°, random). Under Node, Pyodide
+  0.27.7 builds KFDK's pack byte-identical to the native one in about 16 s; the test also checks the zip's
+  names, the progress calls, and that the page's Pyodide version is the one tested.
+- **`tools/sd_card.py`:** `region_files` and `make` for the page's worker, and a CLI that makes the same zip.
+  The zip has fixed timestamps (2020-01-01), so the page's zip and the CLI's are byte-identical. An
+  out-of-range or non-numeric home raises `build_map.RangeError` (a `ValueError`), shown on the page as a home
+  message; other errors are build failures.
+- **Workflows:** the map sources are cached by month and by a hash of `SOURCES`. Pages copies `logos.pak` from
+  the latest release beside the install images; a release without it deploys a page that builds the map alone.
+  CI's `pack-builder` job runs the parity self-test and the Pyodide test.
+- **The page (`sd.html`):** in the browser a build takes about 15-22 s (Pyodide cached), 19 s with the first
+  Pyodide load; the zip is 5.9 MB with logos. Home edits are locked during a build. The "Near" line names the
+  most populous town within twice the nearest town's distance plus 1 nm ("Near Frederick, MD, US (2 nm)" for
+  KFDK, where the nearest town is Spring Ridge).
+- **Privacy:** the board links to `sd.html#lat=…&lon=…` (a fragment, never sent to the server); the page also
+  accepts `?lat=&lon=`, reads either, then clears it from the address bar, and sends no referrer. Which region
+  files are fetched reveals the rough area (a 5° cell or a few), not the location; the page says so.
+- **Later:** a faster build (the browser takes about twice the native 7.7 s; any speed-up must keep the bytes);
+  the Actions Node 20 deprecations noted in 6a §9.
+

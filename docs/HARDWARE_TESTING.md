@@ -392,3 +392,17 @@ Needs the developer at the board (Web Serial needs a person to pick the port):
   off; the board boots the new version (`[boot] Contrail <version>` in the log, the version on the web page)
   with its settings kept. Then once with erase on: it boots into `Contrail-setup`.
 - **cyd_microusb** is untested on hardware: the Install page says so.
+
+## SD card from the site (6c)
+
+Checked on the computer: the page builds KFDK's card in the browser (about 15-22 s), and its `map.pak` is
+byte-identical to `tools/build_map.py`'s (CI's `pack-builder` job checks this with Pyodide under Node).
+
+Needs the developer at the board (not yet done):
+
+- **The card:** on https://christopherjacob.github.io/contrail/sd.html build the card for the board's home,
+  unzip `contrail-sd-card.zip` to a FAT32 card so it holds `/contrail/map.pak` and `/contrail/logos.pak`, put it
+  in and restart. The web page's Firmware card shows the logo count and "Map: detailed"; the Live Map shows
+  roads, towns and airfields around home.
+- **The board's link:** with a firmware built from this branch or later, the Location card's "Build an SD card
+  for this location" opens the page with home filled in and the address bar showing only `…/sd.html`.
