@@ -82,17 +82,21 @@ Emscripten's `localtime_r` takes the zone from JS `Date` (the visitor's) and ign
 
 `tools/record_sky.py <places.json> <out-dir>`:
 
-- For each place, every 10 s for 10 minutes (the board's default community poll), GETs adsb.lol's
+- For each place, every 20 s for 10 minutes, GETs adsb.lol's
   `/v2/point/<lat>/<lon>/<radius>` with the radius the firmware asks for (its default range setting), and stores
-  the body unchanged: `<place>/000.json` … `059.json`.
+  the body unchanged: `<place>/000.json` … `029.json`.
+  20 s, not the board's default 10 s, because adsb.lol allows about 20 requests a minute per IP (measured
+  2026-11-08: a burst of 10, then 429) and five places at 10 s is 30 a minute; at 20 s it is 15. A 429 waits out
+  its Retry-After (at most 60 s) and asks once more; a reply that still fails fails the place.
 - Collects the callsigns of the 12 nearest flights in each reply (the board looks up its 8 nearest) and, after the
   replies, looks each up once on adsbdb, storing `<place>/routes.json` (callsign → the
   reply body, or null for a 404). Requests are spaced (at least 1 s apart per host) and carry the project's
   User-Agent.
-- Writes `<place>/index.json`: the place, the start epoch (UTC), the interval, the reply count.
+- Writes `<place>/index.json`: the place, the start epoch (UTC), the interval (20), the reply count (30).
 - Places are recorded in parallel (one thread each), so a run takes about 10 minutes. A place whose recording
   fails keeps no files; the page lists only places with an `index.json`.
-- Playback: the HAL serves reply k at the k-th poll. After the last, the place is loaded again from its start (same
+- Playback: the simulator sets the community poll interval (`poll_comm_s`, a setting of 2-60 s) to the recording's
+  interval, as a board set to 20 s would run, so the replay is in real time. The HAL serves reply k at the k-th poll. After the last, the place is loaded again from its start (same
   screen, same settings), so trails and stats start afresh instead of planes jumping back. The page says when the
   recording was made.
 
@@ -105,7 +109,7 @@ simulator runs with drawn tail fins, as a board without a card.
 
 The Pages workflow gains `schedule: cron "17 * * * *"` (hourly), installs emscripten (cached), builds `-e wasm`,
 records, and runs `sim_site.py`. A failed recording run deploys the site without the simulator's places rather than
-failing the deploy; a failed WASM build fails it. Load: about 300 requests an hour to adsb.lol across the five
+failing the deploy; a failed WASM build fails it. Load: about 150 requests an hour to adsb.lol across the five
 places, and adsbdb lookups for the callsigns seen.
 
 ## 6. The page (`sim.html`)
