@@ -3,8 +3,8 @@
 // (tools/sim_node_test.mjs): one demo scene on one screen in one theme, drawn in the golden tests' call order
 // (test/common/GoldenRender.h: fill, sceneUpdated, showNow, 75 frames of 1/30 s, no tick), so a frame matches the
 // goldens and is the same on every run. As their goldens do, the Map gets 70 s of trails (8 scene updates, as
-// test_map_screen's map_busy) and the Sky 100 frames (sky_night: a beacon lit). The caller sets the time zone to
-// UTC first: the scenes' clocks are UTC.
+// test_map_screen's map_busy) and the Sky 100 frames (sky_night: a beacon lit). localtime must give UTC
+// first, as the scenes' clocks are UTC (desktop: TZ=UTC0; the WASM build: its localtime override's zone).
 #include <cstdint>
 #include <cstdio>
 
