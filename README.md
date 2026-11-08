@@ -115,6 +115,20 @@ Settings live in `~/.contrail/settings.json` (same keys as the device), for exam
 `{"lat": "51.47", "lon": "-0.45", "loc_set": "true"}`. The simulator's "SD card" is a folder,
 `CONTRAIL_SD` (default `sim_sd/` in the working directory), holding `contrail/logos.pak` and `contrail/map.pak`.
 
+### Simulator in the browser
+
+The [Simulator page](https://christopherjacob.github.io/contrail/sim.html) runs the same firmware, compiled to
+WebAssembly, on flights recorded over five airports; the Pages workflow records them again every hour. To build it
+locally (emscripten 7.0.0 on `PATH`, and the site's map data from `tools/sd_site.sh site`):
+
+```bash
+python3 -I tools/record_sky.py tools/sim_places.json /tmp/rec --replies 6   # a minute of flights per place
+python3 -I tools/sim_site.py site /tmp/rec
+npx http-server site                                                          # then open /sim.html
+```
+
+The server must answer Range requests (the maps and logos are read in pieces); `python3 -m http.server` doesn't.
+
 ## Python tools
 
 The generators and pack tools run from a virtualenv in `tools/.venv`:
@@ -177,6 +191,7 @@ firmware/lib/core/map    built-in base map; the map pack reader, chart painter a
 firmware/lib/hal         hardware interfaces
 firmware/lib/hal_esp32   CYD implementation (LovyanGFX, WiFi, NVS, SD over SPI)
 firmware/lib/hal_native  SDL + libcurl implementation for the simulator
+firmware/lib/hal_wasm    browser simulator build: replayed flights, SD files read by HTTP Range, worker glue
 assets/logos             airline logos for logos.pak (third-party trademarks, see Licence)
 tools/                   generators: fonts, CA bundle, map, stars, trees, gen_shapes.py (aircraft shapes)
 tools/build_pack.py      assets/logos -> logos.pak
@@ -189,9 +204,13 @@ tools/sd_node_test.mjs   the SD card page's build in Pyodide under Node, checked
 tools/fetch_logos.py     one-time download of assets/logos
 tools/sd_upload.py       write a file to the board's SD card over USB (with the cyd_sdload env)
 tools/make_fat_fixtures.sh  rebuild the FAT reader's test disk images (macOS)
+tools/build_wasm.sh      the firmware with emscripten -> contrail.js and contrail.wasm
+tools/record_sky.py      recorded flights over tools/sim_places.json's places for the browser simulator
+tools/sim_site.py        puts the browser simulator, its recordings and maps on the site (site/sim)
+tools/sim_node_test.mjs  the WebAssembly build's frames under Node, checked against the desktop simulator
 docs/superpowers         specs and plans
-site/                    the GitHub Pages site (showcase, installer, SD card page); screenshots, install images,
-                         logos.pak and map data added by Actions
+site/                    the GitHub Pages site (showcase, simulator, installer, SD card page); screenshots, install
+                         images, logos.pak, map data and the simulator's recordings added by Actions
 .github/workflows        CI, release and Pages workflows
 tools/screenshots.sh     simulator screenshots of every screen and theme
 tools/release_assets.sh  release files from the cyd2usb and cyd_microusb builds

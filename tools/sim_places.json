@@ -1,0 +1,7 @@
+[
+  {"id": "kfdk", "name": "Frederick, Maryland", "airport": "KFDK", "lat": 39.4176, "lon": -77.3743, "zone": "America/New_York"},
+  {"id": "kjfk", "name": "New York JFK", "airport": "KJFK", "lat": 40.6413, "lon": -73.7781, "zone": "America/New_York"},
+  {"id": "egll", "name": "London Heathrow", "airport": "EGLL", "lat": 51.4700, "lon": -0.4543, "zone": "Europe/London"},
+  {"id": "eham", "name": "Amsterdam Schiphol", "airport": "EHAM", "lat": 52.3105, "lon": 4.7683, "zone": "Europe/Amsterdam"},
+  {"id": "ksfo", "name": "San Francisco SFO", "airport": "KSFO", "lat": 37.6189, "lon": -122.375, "zone": "America/Los_Angeles"}
+]

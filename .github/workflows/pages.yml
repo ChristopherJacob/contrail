@@ -5,6 +5,9 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+  # The simulator's recordings (6b): an hour old at most.
+  schedule:
+    - cron: "17 * * * *"
 
 permissions:
   contents: read
@@ -17,8 +20,11 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # build_wasm.sh's git describe needs the tags
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -33,6 +39,10 @@ jobs:
         run: |
           pip install platformio==6.2.0 -r tools/requirements.txt
           sudo apt-get update && sudo apt-get install -y libsdl2-dev libcurl4-openssl-dev
+      - uses: mymindstorm/setup-emsdk@v16
+        with:
+          version: 7.0.0
+          actions-cache-folder: emsdk-cache
       - name: Simulator
         working-directory: firmware
         run: pio run -e sim
@@ -78,6 +88,14 @@ jobs:
           fi
           rm -f api.err
           ls -l site site/shots site/firmware site/py && du -sh site/mapdata
+      # About 10 minutes: 30 replies 20 s apart for each place, at once, then their routes. A failed place is left
+      # out; with none recorded, the page says so and the rest of the site still deploys. The timeout is for a hung
+      # adsbdb, which would otherwise run the job past its 30 minutes and block that hour's deploy; a killed run
+      # leaves only <id>.tmp folders, which sim_site.py ignores.
+      - name: Record the simulator's flights
+        run: timeout 15m python -I tools/record_sky.py tools/sim_places.json "$RUNNER_TEMP/recordings" || echo "no recordings"
+      - name: Simulator site files
+        run: python -I tools/sim_site.py site "$RUNNER_TEMP/recordings"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

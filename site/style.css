@@ -40,7 +40,7 @@ a:hover { color: #ffe3c0; }
 .brand { display: flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; font-weight: 700; font-size: 18px; }
 .brand img { width: 28px; height: 28px; }
 .top nav { display: flex; gap: 20px; margin-left: auto; }
-.top nav a { color: var(--soft); text-decoration: none; padding: 6px 0; }
+.top nav a { color: var(--soft); text-decoration: none; padding: 6px 0; white-space: nowrap; }
 .top nav a:hover { color: var(--text); }
 .top nav a[aria-current="page"] { color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
 
@@ -150,6 +150,37 @@ progress { display: block; width: 100%; height: 8px; accent-color: var(--accent)
 .summary { margin: 12px 0 0; }
 #failed { margin: 16px 0 0; }
 
+/* Simulator */
+.sim { display: grid; grid-template-columns: auto 1fr; gap: 40px; align-items: start; margin-top: 32px; }
+/* The LED sits beside the device's frame, outside the device's overflow: hidden. */
+.sim-screen { position: relative; width: 480px; max-width: 100%; margin: 11px; }
+.sim-device {
+    aspect-ratio: 3 / 4; border-radius: 18px; overflow: hidden; background: #000;
+    box-shadow: 0 0 0 10px #10142b, 0 0 0 11px #2b3670, 0 30px 80px rgba(0, 0, 0, .6);
+}
+.sim-device canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; touch-action: none; cursor: pointer; }
+.led {
+    position: absolute; right: -30px; top: 12px; width: 10px; height: 10px; border-radius: 50%;
+    background: #1b2040; color: transparent; box-shadow: 0 0 8px 2px currentColor;
+}
+.sim-controls { display: grid; gap: 18px; align-content: start; }
+.sim-controls fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.sim-controls legend { color: var(--soft); font-size: 15px; margin-bottom: 6px; padding: 0; }
+.sim-controls > .btn { justify-self: start; }
+.sim-controls p { margin: 0; }
+.sim-controls p:empty { display: none; }  /* no grid gap for a line with nothing to say yet */
+/* The screen shows through; only the retry button and the report link take clicks. */
+.sim-overlay {
+    position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 16px;
+    padding: 24px; text-align: center; pointer-events: none;
+}
+.sim-overlay p { margin: 0; }
+.sim-overlay #failed { margin: 0; background: rgba(40, 14, 20, .92); }
+.sim-overlay .btn, .sim-overlay a { pointer-events: auto; }
+.screens .btn { padding: 8px 14px; font-size: 15px; }
+.screens .btn[aria-pressed="true"] { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.seg label { color: var(--soft); }
+
 /* Footer */
 footer { border-top: 1px solid rgba(43, 54, 112, .6); padding: 28px 0 40px; color: var(--dim); font-size: 14px; }
 footer p { margin: 0 0 .6em; }
@@ -162,7 +193,10 @@ footer .flag { width: 18px; height: 12px; flex: none; border-radius: 1px; box-sh
     .shot { grid-template-columns: 1fr; gap: 12px; padding: 12px; }
     .shot figcaption b { font-size: 18px; }
     .picker { grid-template-columns: 1fr; }
-    .top nav { margin-left: 0; gap: 16px; }
+    .sim { grid-template-columns: 1fr; gap: 28px; }
+    .sim-screen { width: auto; }
+    .led { right: 0; top: -30px; }
+    .top nav { margin-left: 0; gap: 4px 12px; flex-wrap: wrap; font-size: 15px; }  /* five links on one line at 375 px */
     section { padding: 36px 0; }
 }
 

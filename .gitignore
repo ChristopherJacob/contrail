@@ -7,6 +7,7 @@ build/
 /out/
 tools/.venv/
 *.actual.ppm
+/*.ppm
 firmware/compile_commands.json
 firmware/src/web/WebPage.h
 logos.pak
@@ -16,6 +17,7 @@ tools/.cache/
 site/shots/
 site/firmware/
 site/mapdata/
+site/sim/
 site/py/
 site/mapdata.tmp/
 /contrail-sd-card.zip
