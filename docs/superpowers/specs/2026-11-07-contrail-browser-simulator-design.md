@@ -70,7 +70,7 @@ simulator runs `networkTick` on its own thread. In the browser:
 | `ITouch` | the page posts pointer down/move/up in screen pixels; `read` returns the latest |
 | `IClock` | `millis` from `performance.now()`; `epochSeconds` = the recording's start + time since the place was loaded, so the sky matches the place's time of day |
 | `IHttp` | synchronous XHR. An adsb.lol URL (the community provider, `Providers.cpp`) is answered with the recording's next reply; an adsbdb URL (`Routes.cpp`) with the recorded route or a 404. Any other URL: transport error. The real parsers read the real reply bodies |
-| `IStorage` / `IFile` | `/contrail/logos.pak` and `/contrail/map.pak` read by HTTP `Range` requests (`readAt` → `bytes=o-(o+n-1)`), so only the bytes drawn are downloaded; `writeAt` false, `writable` false |
+| `IStorage` / `IFile` | `/contrail/logos.pak` and `/contrail/map.pak` read by HTTP `Range` requests (`readAt` → `bytes=o-(o+n-1)`), so only the bytes drawn are downloaded; `writeAt` goes to an in-memory overlay (the map's saved chart lasts the visit) and `writable` is true, because `MapPack` needs it |
 | `IKeyValueStore` | in memory; the worker sets home, the time zone and the theme before `begin` |
 | LED, backlight, light sensor | the LED colour is posted to the page (a dot beside the screen); the others are no-ops |
 

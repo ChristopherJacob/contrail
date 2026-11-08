@@ -13,7 +13,8 @@
 
 namespace hal {
 
-// Reads n bytes at offset of the file at url into out; false when that failed.
+// Reads n bytes at offset of the file at url into out: true only with exactly n bytes written to out; anything else
+// false.
 using FetchRange = std::function<bool(const std::string& url, uint32_t offset, uint32_t n, void* out)>;
 // The file's size, or -1 when it is missing.
 using FetchSize = std::function<int64_t(const std::string& url)>;
@@ -25,6 +26,9 @@ class RangeFile : public IFile {
     RangeFile(std::string url, uint32_t size, FetchRange fetch);
     uint32_t size() const override { return size_; }
     bool readAt(uint32_t offset, void* buf, uint32_t n) override;
+    // The map saves its drawn chart inside map.pak. The site's file can't change, so writes land in blocks kept in
+    // memory for the visit (never evicted, ~135 KB for the chart); reads see them. Never past size().
+    bool writeAt(uint32_t offset, const void* buf, uint32_t n) override;
 
    private:
     const uint8_t* block(uint32_t index);  // nullptr when the request failed
@@ -38,6 +42,7 @@ class RangeFile : public IFile {
     FetchRange fetch_;
     Slot slots_[kBlocks];
     uint32_t tick_ = 0;
+    std::map<uint32_t, std::vector<uint8_t>> dirty_;  // block index → the block with its writes
 };
 
 class RangeStorage : public IStorage {
@@ -48,7 +53,9 @@ class RangeStorage : public IStorage {
     bool mounted() const override { return true; }
     // Opening a path that is already open returns the same file.
     IFile* open(const char* path) override;
-    bool writable() const override { return false; }
+    // True although nothing reaches the site: MapPack refuses a card without safe writes because on the device a
+    // garbled address could write elsewhere, and writes here go to memory, where that can't happen.
+    bool writable() const override { return true; }
 
    private:
     std::map<std::string, std::string> urls_;

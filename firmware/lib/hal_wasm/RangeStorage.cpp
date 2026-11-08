@@ -21,7 +21,27 @@ bool RangeFile::readAt(uint32_t offset, void* buf, uint32_t n) {
     return true;
 }
 
+bool RangeFile::writeAt(uint32_t offset, const void* buf, uint32_t n) {
+    if (uint64_t(offset) + n > size_) return false;
+    const uint8_t* in = static_cast<const uint8_t*>(buf);
+    while (n) {
+        uint32_t index = offset / kBlock, at = offset % kBlock, k = std::min(n, kBlock - at);
+        auto d = dirty_.find(index);
+        if (d == dirty_.end()) {
+            const uint8_t* b = block(index);  // the site's bytes first: the rest of the block must stay readable
+            if (!b) return false;
+            uint32_t len = std::min(kBlock, size_ - index * kBlock);
+            d = dirty_.emplace(index, std::vector<uint8_t>(b, b + len)).first;
+        }
+        std::memcpy(d->second.data() + at, in, k);
+        in += k, offset += k, n -= k;
+    }
+    return true;
+}
+
 const uint8_t* RangeFile::block(uint32_t index) {
+    auto d = dirty_.find(index);
+    if (d != dirty_.end()) return d->second.data();
     Slot* victim = &slots_[0];
     for (Slot& s : slots_) {
         if (s.index == index) return s.used = ++tick_, s.data.data();
