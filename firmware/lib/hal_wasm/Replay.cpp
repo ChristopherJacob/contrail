@@ -18,6 +18,24 @@ const std::string kRoutes = std::string("https://") + prov::AdsbdbClient::kHost 
 
 bool startsWith(const char* s, const char* prefix) { return std::strncmp(s, prefix, std::strlen(prefix)) == 0; }
 
+// The reply as old as it really is when served: a reply repeated after an early poll is ageSec older than it was
+// recorded, and the parser dates each plane from seen_pos (else seen), so without this the planes would jump back by
+// the time elapsed. Only the fields that are there; the rest keeps its value (the body is re-serialized).
+std::string aged(const std::string& raw, float ageSec) {
+    if (ageSec <= 0) return raw;
+    JsonDocument doc;
+    if (deserializeJson(doc, raw)) return raw;
+    for (const char* key : {"ac", "aircraft"}) {
+        for (JsonObject e : doc[key].as<JsonArray>()) {
+            for (const char* f : {"seen_pos", "seen"})
+                if (e[f].is<float>()) e[f] = e[f].as<float>() + ageSec;
+        }
+    }
+    std::string out;
+    serializeJson(doc, out);
+    return out;
+}
+
 HttpStatus answer(int status, const std::string& text, const BodyHandler& body) {
     HttpStatus st{status};
     if (st.ok()) {
@@ -41,7 +59,8 @@ HttpStatus ReplayHttp::get(const char* url, const Header*, int, const BodyHandle
     for (const char* feed : kFeeds) {
         if (!startsWith(url, feed)) continue;
         // By elapsed time, not by poll count: the firmware also polls early (applySettings), which must not skip ahead.
-        const int k = int((ms_() - base_) / uint32_t(intervalMs_));
+        const uint32_t elapsed = ms_() - base_;
+        const int k = int(elapsed / uint32_t(intervalMs_));
         if (ended_ || k >= replies_) return ended_ = true, HttpStatus{-1};
         if (k != current_) {
             char path[32];
@@ -50,7 +69,7 @@ HttpStatus ReplayHttp::get(const char* url, const Header*, int, const BodyHandle
             current_ = k;
             ++served_;
         }
-        return answer(cur_.status, cur_.body, body);
+        return answer(cur_.status, aged(cur_.body, float(elapsed - uint32_t(k) * uint32_t(intervalMs_)) / 1000.f), body);
     }
     if (startsWith(url, kRoutes.c_str())) {
         loadRoutes();

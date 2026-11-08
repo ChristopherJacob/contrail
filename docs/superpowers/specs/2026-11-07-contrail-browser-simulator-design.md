@@ -69,7 +69,7 @@ simulator runs `networkTick` on its own thread. In the browser:
 | `IDisplay` | `pushRect` copies strips into a 240×320 RGB565 frame; `endFrame` posts it to the page (transferred, not copied) when anything changed |
 | `ITouch` | the page posts pointer down/move/up in screen pixels; `read` returns the latest |
 | `IClock` | `millis` from `performance.now()`; `epochSeconds` = the recording's start + time since the place was loaded, so the sky matches the place's time of day |
-| `IHttp` | synchronous XHR. An adsb.lol URL (the community provider, `Providers.cpp`) is answered with the recording's next reply; an adsbdb URL (`Routes.cpp`) with the recorded route or a 404. Any other URL: transport error. The real parsers read the real reply bodies |
+| `IHttp` | synchronous XHR. An adsb.lol URL (the community provider, `Providers.cpp`) is answered with the recording's reply for the elapsed time (reply = elapsed / interval; a repeat after an early poll has its `seen`/`seen_pos` aged by the time since that reply's slot, so planes do not jump back); an adsbdb URL (`Routes.cpp`) with the recorded route or a 404. Any other URL: transport error. The real parsers read the real reply bodies |
 | `IStorage` / `IFile` | `/contrail/logos.pak` and `/contrail/map.pak` read by HTTP `Range` requests (`readAt` → `bytes=o-(o+n-1)`), so only the bytes drawn are downloaded; `writeAt` goes to an in-memory overlay (the map's saved chart lasts one loop of the recording; the reload starts a fresh card) and `writable` is true, because `MapPack` needs it |
 | `IKeyValueStore` | in memory; the worker sets home, the time zone and the theme before `begin` |
 | LED, backlight, light sensor | the LED colour is posted to the page (a dot beside the screen); the others are no-ops |
@@ -188,7 +188,7 @@ and the controls stack below it. Nothing red in the console. Every request is fo
   before they are transferred.
 - **Routes:** looked up on adsbdb for the 12 nearest flights per reply (the board looks up its 8 nearest), once
   each, after the replies.
-- **Numbers (2026-11-08, Chrome, localhost):** `contrail.wasm` 839,291 bytes (508 KB gzipped), `contrail.js`
+- **Numbers (2026-11-08, Chrome, localhost):** `contrail.wasm` 844,926 bytes (gzipped was 508 KB at 839,291 bytes), `contrail.js`
   14 KB. The worker is ready and draws its first frame in well under a second on localhost (the WASM's download is
   the real cost on a slow link). One place, about 25 s cycling all six screens: 0.32-0.49 MB downloaded (Frederick
   0.32, JFK 0.42, Heathrow 0.49, Schiphol 0.40, SFO 0.37), of which 190-240 KB of its `map.pak` in 12-15 Range
@@ -197,4 +197,5 @@ and the controls stack below it. Nothing red in the console. Every request is fo
 - **Emscripten:** 7.0.0, pinned in CI with `mymindstorm/setup-emsdk@v16` (cached).
 - **Replies by elapsed time:** a settings change (the theme switch, a quick-settings edit) makes the firmware poll
   at once (`CoreApp::applySettings` → `runSoon`), so `ReplayHttp` serves reply = elapsed / interval, not the next one;
-  an early poll repeats the current reply (cached, no refetch) and the recording keeps its pace.
+  an early poll repeats the current reply (cached, no refetch) and the recording keeps its pace. A repeated reply
+  counts as a new poll for the alert engine's two-poll squawk rule (rare; accepted).

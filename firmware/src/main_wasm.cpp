@@ -173,9 +173,10 @@ EMSCRIPTEN_KEEPALIVE int sim_start(const char* dir, double lat, double lon, doub
 
 EMSCRIPTEN_KEEPALIVE void sim_step(double dt) {
     if (!sim) return;
-    // The recording's end: the place again from its start, on the same screen, same settings. Not for a recording
-    // that served nothing, which would be rebuilt every poll.
-    if (sim->http.ended() && sim->http.served() > 0) {
+    // The recording's end: the place again from its start, on the same screen, same settings. Not for a place
+    // with no replies, which would be rebuilt every poll (ended() can be true before anything was served: a first
+    // poll after the whole recording's time).
+    if (sim->http.ended() && sim->place.replies > 0) {
         const Place p = sim->place;
         // The settings only: the stats (StatsBook's st_* keys) start afresh (spec §4), else every loop would count
         // the same flights again and no first sighting would come up twice.

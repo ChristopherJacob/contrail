@@ -64,7 +64,8 @@ function step() {
     return fail("crash", String((e && e.message) || e));
   }
   last = now;
-  // Hidden: no frames to show, and the replay waits rather than running on unseen.
+  // Hidden: no frames to show, so stepping stops; the replay clock keeps running, and on return the replay jumps to
+  // the current reply (or reloads the place, if the recording has ended meanwhile).
   timer = paused ? 0 : setTimeout(step, Math.max(0, FRAME_MS - (performance.now() - now)));
 }
 

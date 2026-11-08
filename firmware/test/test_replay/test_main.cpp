@@ -6,6 +6,8 @@
 #include <map>
 #include <string>
 
+#include <ArduinoJson.h>
+
 #include "hal.h"  // names the hal lib for the dependency finder, which does not follow the include below
 #include "providers/Providers.h"
 #include "providers/Routes.h"
@@ -242,6 +244,29 @@ static void test_the_end_comes_after_replies_times_interval() {
     TEST_ASSERT_EQUAL(1, fetches);
 }
 
+static void test_a_repeated_reply_is_aged_by_the_elapsed_offset() {
+    reset();
+    files["sim/kfdk/000.json"] = {200, R"({"ac":[{"hex":"a1","seen_pos":1.5,"seen":0.5,"lat":1},{"hex":"a2","seen":2},{"hex":"a3"}]})"};
+    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 2, 20, nowFake);
+    const char* url = "https://api.adsb.lol/v2/point/1/2/25";
+    get(http, url);  // at the window start: the recorded bytes
+    TEST_ASSERT_EQUAL_STRING(files["sim/kfdk/000.json"].body.c_str(), body.c_str());
+    later(4);
+    get(http, url);
+    JsonDocument d;
+    TEST_ASSERT_FALSE(deserializeJson(d, body));
+    TEST_ASSERT_EQUAL_FLOAT(5.5f, d["ac"][0]["seen_pos"].as<float>());
+    TEST_ASSERT_EQUAL_FLOAT(4.5f, d["ac"][0]["seen"].as<float>());
+    TEST_ASSERT_EQUAL_FLOAT(6.0f, d["ac"][1]["seen"].as<float>());
+    TEST_ASSERT_TRUE(d["ac"][2]["seen"].isNull());  // absent stays absent
+    TEST_ASSERT_EQUAL(1, d["ac"][0]["lat"].as<int>());
+    later(20);  // the next window's start (24 s in): aged by its own offset, 4 s
+    files["sim/kfdk/001.json"] = {200, R"({"aircraft":[{"hex":"b1","seen_pos":0.5}]})"};
+    get(http, url);
+    TEST_ASSERT_FALSE(deserializeJson(d, body));
+    TEST_ASSERT_EQUAL_FLOAT(4.5f, d["aircraft"][0]["seen_pos"].as<float>());
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_replies_in_order_then_the_end);
@@ -260,5 +285,6 @@ int main(int, char**) {
     RUN_TEST(test_an_early_poll_repeats_the_reply_without_fetching);
     RUN_TEST(test_the_reply_follows_the_time);
     RUN_TEST(test_the_end_comes_after_replies_times_interval);
+    RUN_TEST(test_a_repeated_reply_is_aged_by_the_elapsed_offset);
     return UNITY_END();
 }
