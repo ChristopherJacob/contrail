@@ -90,3 +90,40 @@ jobs:
           python -I tools/build_map.py --lat 39.4176 --lon -77.3743 --out "$RUNNER_TEMP/native.pak"
           npm install --prefix "$RUNNER_TEMP/node" --no-save --ignore-scripts --no-audit --no-fund pyodide@0.27.7
           node tools/sd_node_test.mjs "$RUNNER_TEMP/node/node_modules/pyodide/pyodide.mjs" "$RUNNER_TEMP/mapdata" "$RUNNER_TEMP/native.pak"
+  # The browser simulator (6b): the WebAssembly build must draw the same pixels as the desktop one.
+  simulator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
+      - name: Install PlatformIO, SDL2 and curl
+        run: |
+          pip install platformio==6.2.0 -r tools/requirements.txt
+          sudo apt-get update && sudo apt-get install -y libsdl2-dev libcurl4-openssl-dev
+      - uses: mymindstorm/setup-emsdk@v16
+        with:
+          version: 7.0.0
+          actions-cache-folder: emsdk-cache
+      - name: Desktop simulator
+        working-directory: firmware
+        run: pio run -e sim
+      - name: WebAssembly build
+        run: tools/build_wasm.sh "$RUNNER_TEMP/sim"
+      - name: The browser build draws the same pixels
+        run: node tools/sim_node_test.mjs "$RUNNER_TEMP/sim" firmware/.pio/build/sim/program
+      - name: Recorder self-test
+        run: python -I tools/record_sky.py --selftest
