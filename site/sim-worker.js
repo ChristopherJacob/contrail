@@ -1,11 +1,11 @@
 // The browser simulator's worker (6b spec §2): runs the firmware (sim/contrail.js) on a place's recording and hands
 // its frames to sim.js. In: {start: place, logos, theme}, {touch: [down, x, y]}, {show: screen}, {theme: name},
-// {alert: true}. Out: {ready: true}, {started: id}, {frame: Uint16Array}, {led: [r, g, b]},
-// {error: "load" | "crash", what}.
+// {alert: true}. Out: {ready: true}, {started: id}, {frame: Uint16Array}, {led: [r, g, b]}, {theme: name} (the theme
+// on screen, also when the quick-settings panel changes it), {error: "load" | "crash", what}.
 importScripts("sim/contrail.js");
 
 const FRAME_MS = 1000 / 30;
-let m = null, timer = 0, last = 0;
+let m = null, timer = 0, last = 0, theme = "";
 // The touch samples for the coming steps, one per step, as the board's touch panel is read once a frame. Pointer
 // events come faster than steps and in bursts (a quick flick can be down, one move, up between two steps): the
 // press's first sample and its release are kept, moves between them coalesce, so the firmware sees where a swipe
@@ -48,10 +48,12 @@ function exists(url) {
 function step() {
   const now = performance.now();
   try {
-    const t = queue.shift() || touch;
-    m._sim_touch(t.down, t.x, t.y);
+    const s = queue.shift() || touch;
+    m._sim_touch(s.down, s.x, s.y);
     // Capped: a background tab's throttled timers would otherwise hand the firmware one huge step.
     m._sim_step(Math.min(0.1, (now - last) / 1000));
+    const t = m.ccall("sim_theme_name", "string", [], []);
+    if (t !== theme) postMessage({ theme: (theme = t) });
   } catch (e) {
     return fail("crash", String((e && e.message) || e));
   }
@@ -59,15 +61,16 @@ function step() {
   timer = setTimeout(step, Math.max(0, FRAME_MS - (performance.now() - now)));
 }
 
-function start({ start: p, logos, theme }) {
+function start({ start: p, logos, theme: chosen }) {
   stop();
+  theme = "";  // the new place's theme is posted after its first step
   if (!exists(`sim/${p.id}/000.json`)) return fail("load", `the ${p.name} recording`);
   // localtime.js reads it on every clock: set before the place starts, so its clocks show the place's own time.
   m.timeZone = p.zone;
   try {
     m.ccall("sim_start", "number",
             ["string", "number", "number", "number", "number", "number", "string", "string", "string"],
-            [`sim/${p.id}`, p.lat, p.lon, p.start, p.replies, p.interval, theme, `sim/map-${p.id}.pak`,
+            [`sim/${p.id}`, p.lat, p.lon, p.start, p.replies, p.interval, chosen, `sim/map-${p.id}.pak`,
              logos ? "firmware/logos.pak" : ""]);
   } catch (e) {
     return fail("crash", String((e && e.message) || e));

@@ -1,7 +1,8 @@
 // Browser simulator (6b): the CYD's core and screens in a Web Worker (site/sim-worker.js), on a place's recorded
 // flights. The worker calls sim_start for a place, then sim_touch and sim_step about 30 times a second; sim_show,
-// sim_theme and sim_alert come from the page's controls. sim_render draws a demo frame as the desktop's --render
-// does, for the parity test (tools/sim_node_test.mjs). Built by tools/build_wasm.sh.
+// sim_theme and sim_alert come from the page's controls, and sim_theme_name keeps its theme switch in step.
+// sim_render draws a demo frame as the desktop's --render does, for the parity test (tools/sim_node_test.mjs).
+// Built by tools/build_wasm.sh.
 #include <emscripten/emscripten.h>
 
 #include <algorithm>
@@ -104,7 +105,14 @@ Sim::Sim(const Place& p, const std::map<std::string, std::string>* keep)
     s.set(svc::key::kLocSet, "true");
     // Polls as the recording was made, so the replay runs in real time; set on every start, so a loop keeps it.
     s.set(svc::key::kPollComm, std::to_string(std::clamp(p.interval, 2, 60)).c_str());  // the setting's range
-    if (!keep) s.set(svc::key::kTheme, p.theme.c_str());
+    if (!keep) {
+        s.set(svc::key::kTheme, p.theme.c_str());
+        // 25 nm around a big airport, low passes and military flights are constant: a first-time visitor would see
+        // only takeovers. Off on a place's first start ("Show an alert" demonstrates them); a visitor who turns them
+        // back on keeps that across loops. Emergency and watchlist alerts stay on.
+        s.set(svc::key::kAlertLow, "false");
+        s.set(svc::key::kAlertMil, "false");
+    }
     themeName = s.getEnum(svc::key::kTheme);
     logos.begin(&sd);
     map.begin(&sd);
@@ -200,6 +208,9 @@ EMSCRIPTEN_KEEPALIVE void sim_show(int screen) {
 EMSCRIPTEN_KEEPALIVE void sim_theme(const char* name) {
     if (sim) sim->core.settings().set(svc::key::kTheme, name);
 }
+
+// The theme on screen, for the page's theme switch: the quick-settings panel can change it too.
+EMSCRIPTEN_KEEPALIVE const char* sim_theme_name() { return sim ? sim->themeName.c_str() : ""; }
 
 EMSCRIPTEN_KEEPALIVE void sim_alert() {
     if (sim) sim->screens->injectAlert(scr::AlertKind::Emergency, sim->clock.millis());

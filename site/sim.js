@@ -81,6 +81,10 @@ function boot() {
       // Every frame of an alert's pulse: only touch the style when the colour changes.
       const c = d.led.some(Boolean) ? `rgb(${d.led.join(",")})` : "";
       if (c !== ledColour) ledColour = led.style.color = led.style.background = c;
+    } else if (d.theme) {
+      // The firmware's theme, which the quick-settings panel may have changed.
+      const r = document.querySelector(`input[name="theme"][value="${d.theme}"]`);
+      if (r) r.checked = true;
     } else if (d.ready) startPlace(place.value);
     else if (d.error === "load") showError(`Couldn't load ${d.what}. Check the connection and try again.`, true);
     else if (d.error) showError(`The simulator stopped: ${d.what}.`, false);

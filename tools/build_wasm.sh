@@ -42,7 +42,7 @@ sources=$(cd "$fw" && find lib/core lib/hal_wasm -name '*.cpp' | sort; echo src/
 em++ "${flags[@]}" "$obj"/*.o -o "$out/contrail.js" \
     --no-entry -sMODULARIZE=1 -sEXPORT_NAME=createContrail -sENVIRONMENT=worker,node \
     -sALLOW_MEMORY_GROWTH=1 -sSTACK_SIZE=1048576 \
-    -sEXPORTED_FUNCTIONS=_sim_start,_sim_step,_sim_touch,_sim_show,_sim_theme,_sim_alert,_sim_render,_malloc,_free \
+    -sEXPORTED_FUNCTIONS=_sim_start,_sim_step,_sim_touch,_sim_show,_sim_theme,_sim_theme_name,_sim_alert,_sim_render,_malloc,_free \
     -sEXPORTED_RUNTIME_METHODS=ccall,HEAPU16 \
     --js-library "$fw/lib/hal_wasm/localtime.js"
 size=$(wc -c <"$out/contrail.wasm" | tr -d ' ')

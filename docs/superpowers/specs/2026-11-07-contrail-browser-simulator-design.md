@@ -121,7 +121,11 @@ places, and adsbdb lookups for the callsigns seen.
   the LED dot beside it. Pointer events on the canvas are the touch screen.
 - **Controls:** the place (five buttons or a select), the theme (Cinematic Sky / Bold Editorial), the seven screens
   (each shows that screen as a tap on the device would), and "Show an alert" (an emergency takeover, as
-  `CONTRAIL_ALERT=emerg` in the desktop simulator).
+  `CONTRAIL_ALERT=emerg` in the desktop simulator). The theme switch follows the firmware's theme, so a change in
+  the on-device quick settings shows there too (`sim_theme_name`).
+- **Alert defaults:** a place's first start turns the low-pass and military alerts off (25 nm around a big airport
+  they are constant, and a first-time visitor would see only takeovers; "Show an alert" demonstrates them).
+  Emergency and watchlist alerts stay on, and a visitor's own change in the quick settings survives the loop.
 - **Recorded line:** "Recorded at 14:05 local time, 32 minutes ago. A board shows live flights over your home."
 - **Loading:** "Loading the simulator (1.4 MB)…" until the first frame.
 - **Links:** "Simulator" in the nav of every page; on the showcase hero "Try it in your browser"; the README.
