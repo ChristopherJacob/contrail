@@ -6,7 +6,9 @@
 <site>/sim/ gets contrail.js and contrail.wasm (tools/build_wasm.sh), each recorded place's folder, its map
 (map-<id>.pak, from the site's map regions) and places.json: the recorded places in tools/sim_places.json's order,
 and whether the site has logos.pak (from the latest release). Places without a recording are left out; with none,
-the page says no recording is available. Each place entry is its recording's index.json (id, name, lat, lon, zone,
+the page says no recording is available. A recording whose index.json is unreadable or lacks a field is skipped
+the same way (a bad recording deploys without its place); a failing build_map.py stays fatal, since it means the
+map data itself is broken. Each place entry is its recording's index.json (id, name, lat, lon, zone,
 start, interval, replies), so the page has everything sim_start takes.
 """
 import json
@@ -34,8 +36,17 @@ def main():
         if not os.path.exists(index):
             print(f"{pid}: no recording", file=sys.stderr)
             continue
-        with open(index) as f:
-            place = json.load(f)
+        try:
+            with open(index) as f:
+                place = json.load(f)
+            # The folder name is the id the page builds its paths from, whatever the file says.
+            place["id"] = pid
+            for key in ("name", "lat", "lon", "zone", "start", "interval", "replies"):
+                place[key]
+            float(place["lat"]), float(place["lon"])
+        except (OSError, ValueError, KeyError, TypeError) as e:
+            print(f"{pid}: bad index.json ({e!r}), left out", file=sys.stderr)
+            continue
         shutil.copytree(os.path.join(recordings, pid), os.path.join(out, pid))
         subprocess.run([sys.executable, "-I", os.path.join(HERE, "build_map.py"), "--regions",
                         os.path.join(site, "mapdata"), "--lat", str(place["lat"]), "--lon", str(place["lon"]),
