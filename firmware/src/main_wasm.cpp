@@ -1,6 +1,6 @@
 // Browser simulator (6b): the CYD's core and screens in a Web Worker (site/sim-worker.js), on a place's recorded
 // flights. The worker calls sim_start for a place, then sim_touch and sim_step about 30 times a second; sim_show,
-// sim_theme and sim_alert come from the page's controls, and sim_theme_name keeps its theme switch in step.
+// sim_theme and sim_alert come from the page's controls, and sim_theme_name and sim_screen keep them in step.
 // sim_render draws a demo frame as the desktop's --render does, for the parity test (tools/sim_node_test.mjs).
 // Built by tools/build_wasm.sh.
 #include <emscripten/emscripten.h>
@@ -211,6 +211,9 @@ EMSCRIPTEN_KEEPALIVE void sim_theme(const char* name) {
 
 // The theme on screen, for the page's theme switch: the quick-settings panel can change it too.
 EMSCRIPTEN_KEEPALIVE const char* sim_theme_name() { return sim ? sim->themeName.c_str() : ""; }
+
+// The screen shown or being faded to (ScreenId), for the page's screen buttons: swipes and the director change it too.
+EMSCRIPTEN_KEEPALIVE int sim_screen() { return sim ? int(sim->screens->host().target()) : -1; }
 
 EMSCRIPTEN_KEEPALIVE void sim_alert() {
     if (sim) sim->screens->injectAlert(scr::AlertKind::Emergency, sim->clock.millis());

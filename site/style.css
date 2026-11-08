@@ -169,8 +169,16 @@ progress { display: block; width: 100%; height: 8px; accent-color: var(--accent)
 .sim-controls > .btn { justify-self: start; }
 .sim-controls p { margin: 0; }
 .sim-controls p:empty { display: none; }  /* no grid gap for a line with nothing to say yet */
-.sim-controls #failed { margin: 0; }
+/* The screen shows through; only the retry button and the report link take clicks. */
+.sim-overlay {
+    position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 16px;
+    padding: 24px; text-align: center; pointer-events: none;
+}
+.sim-overlay p { margin: 0; }
+.sim-overlay #failed { margin: 0; background: rgba(40, 14, 20, .92); }
+.sim-overlay .btn, .sim-overlay a { pointer-events: auto; }
 .screens .btn { padding: 8px 14px; font-size: 15px; }
+.screens .btn[aria-pressed="true"] { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .seg label { color: var(--soft); }
 
 /* Footer */
@@ -188,7 +196,7 @@ footer .flag { width: 18px; height: 12px; flex: none; border-radius: 1px; box-sh
     .sim { grid-template-columns: 1fr; gap: 28px; }
     .sim-screen { width: auto; }
     .led { right: 0; top: -30px; }
-    .top nav { margin-left: 0; gap: 4px 16px; flex-wrap: wrap; }  /* five links: a phone wraps them */
+    .top nav { margin-left: 0; gap: 4px 12px; flex-wrap: wrap; font-size: 15px; }  /* five links on one line at 375 px */
     section { padding: 36px 0; }
 }
 

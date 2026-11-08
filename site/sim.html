@@ -34,9 +34,16 @@
       <div id="sim" class="sim">
         <div class="sim-screen">
           <div class="sim-device">
-            <canvas id="screen" width="240" height="320" aria-label="The simulated screen: tap or swipe it"></canvas>
+            <canvas id="screen" width="240" height="320" role="img"
+                    aria-label="The simulated screen: tap or swipe it"></canvas>
           </div>
-          <span class="led" id="led" title="The board's LED"></span>
+          <!-- Over the screen, so loading and errors show where the eye is, at any width. -->
+          <div class="sim-overlay">
+            <p class="status" id="status" aria-live="polite"></p>
+            <p class="note warn" id="failed" role="alert" hidden></p>
+            <button class="btn" id="retry" type="button" hidden>Try again</button>
+          </div>
+          <span class="led" id="led" role="img" aria-label="The board's LED: off" title="The board's LED"></span>
         </div>
         <div class="sim-controls">
           <label class="field" for="place">Place
@@ -48,22 +55,20 @@
           </fieldset>
           <fieldset class="screens">
             <legend>Screen</legend>
-            <button class="btn ghost" type="button" data-screen="0">Closest</button>
-            <button class="btn ghost" type="button" data-screen="1">Radar</button>
-            <button class="btn ghost" type="button" data-screen="2">Board</button>
-            <button class="btn ghost" type="button" data-screen="3">Sky</button>
-            <button class="btn ghost" type="button" data-screen="4">Map</button>
-            <button class="btn ghost" type="button" data-screen="5">Stats</button>
+            <button class="btn ghost" type="button" data-screen="0" aria-pressed="false">Closest</button>
+            <button class="btn ghost" type="button" data-screen="1" aria-pressed="false">Radar</button>
+            <button class="btn ghost" type="button" data-screen="2" aria-pressed="false">Board</button>
+            <button class="btn ghost" type="button" data-screen="3" aria-pressed="false">Sky</button>
+            <button class="btn ghost" type="button" data-screen="4" aria-pressed="false">Map</button>
+            <button class="btn ghost" type="button" data-screen="5" aria-pressed="false">Stats</button>
           </fieldset>
           <button class="btn ghost" id="alert" type="button">Show an alert</button>
-          <p class="status" id="status" aria-live="polite">Loading the simulator (about 1 MB)…</p>
-          <p class="note warn" id="failed" role="alert" hidden></p>
-          <button class="btn" id="retry" type="button" hidden>Try again</button>
           <p class="muted" id="recorded"></p>
           <p class="muted">Swipe sideways to change screens, press and hold for the quick settings, and tap a plane
             to select it. Ready for the real thing? <a href="install.html">Install Contrail</a> on a board.</p>
         </div>
       </div>
+      <noscript><p class="note warn">The simulator needs JavaScript.</p></noscript>
       <p class="note warn" id="unsupported" hidden>The simulator needs a browser with Web Workers and WebAssembly,
         such as a current Chrome, Edge, Firefox or Safari.</p>
     </div>
