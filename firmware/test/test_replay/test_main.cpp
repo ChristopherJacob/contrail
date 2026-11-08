@@ -7,6 +7,8 @@
 #include <string>
 
 #include "hal.h"  // names the hal lib for the dependency finder, which does not follow the include below
+#include "providers/Providers.h"
+#include "providers/Routes.h"
 #include "../../lib/hal_wasm/Replay.cpp"
 
 void setUp() {}
@@ -123,6 +125,67 @@ static void test_memstore() {
     TEST_ASSERT_FALSE(kv.getString("theme", big, sizeof big));
 }
 
+static void test_zero_replies_ends_on_the_first_poll() {
+    reset();
+    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 0);
+    TEST_ASSERT_TRUE(get(http, "https://api.adsb.lol/v2/point/1/2/25").code < 0);
+    TEST_ASSERT_TRUE(http.ended());
+    TEST_ASSERT_EQUAL(0, fetches);
+}
+
+static void test_polls_after_the_end_keep_failing_without_fetching() {
+    reset();
+    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 1);
+    get(http, "https://api.adsb.lol/v2/point/1/2/25");
+    TEST_ASSERT_EQUAL(1, fetches);
+    for (int i = 0; i < 3; ++i) TEST_ASSERT_TRUE(get(http, "https://opendata.adsb.fi/api/v3/lat/1/lon/2/dist/25").code < 0);
+    TEST_ASSERT_TRUE(http.ended());
+    TEST_ASSERT_EQUAL(1, fetches);
+    TEST_ASSERT_EQUAL(1, http.served());
+}
+
+static void test_bad_routes_file_means_every_route_is_unknown() {
+    for (const char* bad : {"{not json", "[1,2]", "\"x\"", ""}) {
+        reset();
+        files["sim/kfdk/routes.json"] = {200, bad};
+        hal::ReplayHttp http(fakeFetch, "sim/kfdk", 2);
+        TEST_ASSERT_EQUAL(404, get(http, "https://api.adsbdb.com/v0/callsign/UAL53").code);
+        TEST_ASSERT_EQUAL(404, get(http, "https://api.adsbdb.com/v0/callsign/N1").code);
+    }
+}
+
+// The real clients through ReplayHttp: a host or path change in lib/core fails here instead of in the browser.
+static void test_the_real_community_provider_parses_the_recording() {
+    reset();
+    files["sim/kfdk/000.json"] = {200, R"({"ac":[{"hex":"a1b2c3","flight":"UAL53 ","alt_baro":4500,"gs":120,"track":270,"lat":37.70,"lon":-122.30,"seen":1.0}]})"};
+    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 2);
+    model::AircraftStore store;
+    store.configure(37.62, -122.38, 25);
+    prov::CommunityProvider p;
+    TEST_ASSERT_TRUE(p.poll(http, store, {100000, 1793373950, 37.62, -122.38, 25}));
+    model::Aircraft a;
+    TEST_ASSERT_EQUAL(1, store.snapshot(&a, 1, 100000));
+    TEST_ASSERT_EQUAL_UINT32(0xa1b2c3, a.hex);
+    TEST_ASSERT_EQUAL_STRING("UAL53", a.callsign);
+    TEST_ASSERT_EQUAL(1, http.served());
+}
+
+static void test_the_real_adsbdb_client_reads_recorded_routes() {
+    reset();
+    files["sim/kfdk/routes.json"] = {200, R"({"UAL53":{"response":{"flightroute":{"origin":{"iata_code":"SFO"},"destination":{"iata_code":"IAD"}}}},"N1":null})"};
+    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 2);
+    prov::AdsbdbClient c;
+    prov::Route r;
+    TEST_ASSERT_TRUE(c.lookup(http, "UAL53", 1000, r));
+    TEST_ASSERT_TRUE(r.known);
+    TEST_ASSERT_EQUAL_STRING("SFO", r.origIata);
+    TEST_ASSERT_EQUAL_STRING("IAD", r.destIata);
+    TEST_ASSERT_TRUE(c.lookup(http, "N1", 1000, r));  // 404: a successful lookup of an unknown callsign
+    TEST_ASSERT_FALSE(r.known);
+    TEST_ASSERT_TRUE(c.lookup(http, "DAL1", 1000, r));
+    TEST_ASSERT_FALSE(r.known);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_replies_in_order_then_the_end);
@@ -133,5 +196,10 @@ int main(int, char**) {
     RUN_TEST(test_other_urls_fail_without_a_request);
     RUN_TEST(test_clock_runs_from_the_recording_start);
     RUN_TEST(test_memstore);
+    RUN_TEST(test_zero_replies_ends_on_the_first_poll);
+    RUN_TEST(test_polls_after_the_end_keep_failing_without_fetching);
+    RUN_TEST(test_bad_routes_file_means_every_route_is_unknown);
+    RUN_TEST(test_the_real_community_provider_parses_the_recording);
+    RUN_TEST(test_the_real_adsbdb_client_reads_recorded_routes);
     return UNITY_END();
 }

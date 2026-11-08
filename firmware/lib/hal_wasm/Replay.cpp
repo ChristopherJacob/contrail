@@ -2,6 +2,8 @@
 
 #include <ArduinoJson.h>
 
+#include "providers/Routes.h"
+
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
@@ -11,7 +13,8 @@ namespace {
 
 // The community provider's hosts (Providers.cpp): on a failed poll it tries the next, so all of them replay.
 const char* const kFeeds[] = {"https://api.adsb.lol/", "https://opendata.adsb.fi/", "https://api.airplanes.live/"};
-const char kRoutes[] = "https://api.adsbdb.com/v0/callsign/";  // AdsbdbClient (Routes.cpp)
+// Built from AdsbdbClient's host so a change there is followed here.
+const std::string kRoutes = std::string("https://") + prov::AdsbdbClient::kHost + "/v0/callsign/";
 
 bool startsWith(const char* s, const char* prefix) { return std::strncmp(s, prefix, std::strlen(prefix)) == 0; }
 
@@ -38,9 +41,9 @@ HttpStatus ReplayHttp::get(const char* url, const Header*, int, const BodyHandle
         Fetched f = fetch_(dir_ + path);
         return answer(f.status, f.body, body);
     }
-    if (startsWith(url, kRoutes)) {
+    if (startsWith(url, kRoutes.c_str())) {
         loadRoutes();
-        auto it = routes_.find(url + sizeof kRoutes - 1);
+        auto it = routes_.find(url + kRoutes.size());
         return it == routes_.end() ? HttpStatus{404} : answer(200, it->second, body);
     }
     return {-1};
@@ -54,7 +57,7 @@ void ReplayHttp::loadRoutes() {
     if (f.status != 200 || deserializeJson(doc, f.body)) return;  // no routes: every lookup is unknown
     for (JsonPair p : doc.as<JsonObject>()) {
         if (p.value().isNull()) continue;
-        std::string text;
+        std::string text;  // re-serialized: equivalent values, not identical bytes, which is deliberate
         serializeJson(p.value(), text);
         routes_[p.key().c_str()] = std::move(text);
     }
