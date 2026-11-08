@@ -165,9 +165,13 @@ EMSCRIPTEN_KEEPALIVE void sim_step(double dt) {
         const Place p = sim->place;
         const std::map<std::string, std::string> keep = sim->kv.all();
         const scr::ScreenId at = sim->screens->host().target();
+        // A screen the user picked would be lost to the new director's own choice: its touch hold carries over
+        // (restarted at full length), so the director adopts the screen as on the old run.
+        const bool held = sim->screens->director().exploring(sim->clock.millis());
         sim.reset();
         sim = std::make_unique<Sim>(p, &keep);
         sim->screens->host().showNow(at);
+        if (held) sim->screens->director().noteTouch(sim->clock.millis());
     }
     sim->step(float(dt));
 }
