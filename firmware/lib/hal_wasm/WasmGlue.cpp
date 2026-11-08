@@ -23,7 +23,8 @@ EM_JS(int, js_fetch, (const char* path, uint8_t** body, int* len), {
     return xhr.status;
 });
 
-// The file's size from a HEAD request, or -1.
+// The file's size from a HEAD request, or -1. The .pak files must be served uncompressed, so Content-Length is the
+// file's (GitHub Pages doesn't compress application/octet-stream).
 EM_JS(double, js_size, (const char* url), {
     const xhr = new XMLHttpRequest();
     xhr.open("HEAD", UTF8ToString(url), false);
@@ -32,12 +33,14 @@ EM_JS(double, js_size, (const char* url), {
     } catch (e) {
         return -1;
     }
-    const n = Number(xhr.getResponseHeader("Content-Length"));
-    return xhr.status === 200 && Number.isFinite(n) ? n : -1;
+    const h = xhr.getResponseHeader("Content-Length");
+    const n = Number(h);
+    return xhr.status === 200 && h !== null && Number.isFinite(n) ? n : -1;
 });
 
 // n bytes at offset into out by a Range request. A server that ignores Range (python -m http.server, when
-// testing) answers 200 with the whole file: that is kept, once per URL.
+// testing) answers 200 with the whole file: that is kept, once per URL, and never evicted. Only such servers (dev
+// ones) fill contrailWhole.
 EM_JS(int, js_range, (const char* urlPtr, double offset, int n, uint8_t* out), {
     const url = UTF8ToString(urlPtr);
     const whole = globalThis.contrailWhole || (globalThis.contrailWhole = {});  // not ??=: a trigraph to C++
@@ -66,6 +69,7 @@ EM_JS(int, js_range, (const char* urlPtr, double offset, int n, uint8_t* out), {
     return 1;
 });
 
+// A view into the WASM memory, not a copy: valid only during the callback (WasmGlue.h).
 EM_JS(void, js_frame, (const uint16_t* px), { Module["onFrame"]?.(HEAPU16.subarray(px >> 1, (px >> 1) + 240 * 320)); });
 EM_JS(void, js_led, (int r, int g, int b), { Module["onLed"]?.(r, g, b); });
 EM_JS(void, js_log, (const char* line), { Module["onLog"]?.(UTF8ToString(line)); });
@@ -90,8 +94,10 @@ bool fetchRange(const std::string& url, uint32_t offset, uint32_t n, void* out) 
 void postFrame(const uint16_t* px) { js_frame(px); }
 void postLed(uint8_t r, uint8_t g, uint8_t b) { js_led(r, g, b); }
 void postLog(const char* line) { js_log(line); }
-uint32_t nowMs() { return uint32_t(emscripten_get_now()); }
-uint32_t nowUs() { return uint32_t(emscripten_get_now() * 1000.0); }
+// Through 64 bits, so they wrap like the device's millis()/micros(): a double past 2^32 converted straight to
+// uint32_t is undefined, and emscripten saturates (micros would freeze after 71.6 minutes).
+uint32_t nowMs() { return uint32_t(uint64_t(emscripten_get_now())); }
+uint32_t nowUs() { return uint32_t(uint64_t(emscripten_get_now() * 1000.0)); }
 
 }  // namespace hal::wasm
 #endif

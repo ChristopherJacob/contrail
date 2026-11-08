@@ -1,7 +1,8 @@
 // localtime_r for the browser build. Emscripten's takes the zone from JS Date (the visitor's) and ignores TZ; the
 // simulator shows a place's own time, so this one uses the IANA zone the worker sets (Module.timeZone,
 // "America/New_York"), "UTC" until then (the parity test's demo frames, whose clocks are UTC). tm_isdst stays 0:
-// the firmware reads only the fields and the offset.
+// the firmware reads only the fields and the offset. tm_zone and mktime still follow the visitor's zone; the firmware
+// uses neither (no mktime, %Z or tm_zone in lib/core).
 addToLibrary({
   _localtime_js__i53abi: true,
   _localtime_js: (time, tmPtr) => {
@@ -9,10 +10,17 @@ addToLibrary({
     if (!Number.isFinite(ms)) return 1;
     const zone = Module["timeZone"] || "UTC";
     const cache = (globalThis.contrailZones ??= {});
-    const f = (cache[zone] ??= new Intl.DateTimeFormat("en-US", {
-      timeZone: zone, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric",
-      hour: "numeric", minute: "numeric", second: "numeric",
-    }));
+    const options = { hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric",
+                      hour: "numeric", minute: "numeric", second: "numeric" };
+    let f = cache[zone];
+    if (!f) {
+      try {
+        f = new Intl.DateTimeFormat("en-US", { ...options, timeZone: zone });
+      } catch (e) {  // RangeError: a zone this browser doesn't know. UTC rather than an abort
+        f = new Intl.DateTimeFormat("en-US", { ...options, timeZone: "UTC" });
+      }
+      cache[zone] = f;
+    }
     const p = {};
     for (const x of f.formatToParts(new Date(ms))) p[x.type] = x.value;
     const y = +p.year, mo = +p.month - 1, d = +p.day, h = +p.hour, mi = +p.minute, s = +p.second;

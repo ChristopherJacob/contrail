@@ -17,8 +17,14 @@ const createContrail = require(path.resolve(dir, "contrail.js"));
 const m = await createContrail();
 m.timeZone = "UTC";  // the desktop's --render sets TZ=UTC0
 
-// tools/screenshots.sh's screen:scene pairs
-const pairs = "closest:busy radar:busy board:busy sky:night map:busy stats:stats alert:busy".split(" ");
+// tools/screenshots.sh's screen:scene pairs, read from it so the two can't drift apart.
+const shots = fs.readFileSync(new URL("screenshots.sh", import.meta.url), "utf8");
+const found = /^pairs="([^"]+)"/m.exec(shots);
+if (!found) {
+  console.error("no pairs=\"…\" line in tools/screenshots.sh");
+  process.exit(2);
+}
+const pairs = found[1].trim().split(/\s+/);
 const header = Buffer.from("P6\n240 320\n255\n");
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "contrail-sim-"));
 const shot = path.join(tmp, "desktop.ppm");

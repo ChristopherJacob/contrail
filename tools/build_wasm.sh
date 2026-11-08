@@ -10,6 +10,9 @@ if [ $# -ne 1 ]; then
     exit 2
 fi
 here="$(cd "$(dirname "$0")" && pwd)"
+# Another emscripten may compile the float maths differently and drift the pixels from the desktop's: worth a word.
+emv="$(em++ --version | head -1)"
+[[ "$emv" == *" 7.0.0"* ]] || echo "warning: built and checked with emscripten 7.0.0, this is: $emv" >&2
 fw="$here/../firmware"
 out="$1"
 mkdir -p "$out"
@@ -44,5 +47,5 @@ em++ "${flags[@]}" "$obj"/*.o -o "$out/contrail.js" \
     --js-library "$fw/lib/hal_wasm/localtime.js"
 size=$(wc -c <"$out/contrail.wasm" | tr -d ' ')
 echo "contrail.wasm: $size bytes ($version)"
-# The spec's budget (§2): 2 MB before compression.
+# The spec's budget (§2): 2 MB (2,000,000 bytes) before compression.
 [ "$size" -le 2000000 ] || { echo "contrail.wasm is over 2 MB" >&2; exit 1; }

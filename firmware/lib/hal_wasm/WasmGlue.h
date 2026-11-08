@@ -12,7 +12,9 @@ namespace hal::wasm {
 Fetched fetchFile(const std::string& path);
 int64_t fileSize(const std::string& url);
 bool fetchRange(const std::string& url, uint32_t offset, uint32_t n, void* out);
-void postFrame(const uint16_t* px);  // 240 x 320 RGB565, rows packed
+// 240 x 320 RGB565, rows packed. Module.onFrame gets a view into the WASM memory, valid only during the call: it
+// must copy (px.slice()) before returning or transferring it.
+void postFrame(const uint16_t* px);
 void postLed(uint8_t r, uint8_t g, uint8_t b);
 void postLog(const char* line);
 uint32_t nowMs();

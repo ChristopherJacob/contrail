@@ -161,16 +161,22 @@ EMSCRIPTEN_KEEPALIVE int sim_start(const char* dir, double lat, double lon, doub
 
 EMSCRIPTEN_KEEPALIVE void sim_step(double dt) {
     if (!sim) return;
-    if (sim->http.ended()) {  // the recording's end: the place again from its start, on the same screen, same settings
+    // The recording's end: the place again from its start, on the same screen, same settings. Not for a recording
+    // that served nothing, which would be rebuilt every poll.
+    if (sim->http.ended() && sim->http.served() > 0) {
         const Place p = sim->place;
-        const std::map<std::string, std::string> keep = sim->kv.all();
+        // The settings only: the stats (StatsBook's st_* keys) start afresh (spec §4), else every loop would count
+        // the same flights again and no first sighting would come up twice.
+        std::map<std::string, std::string> keep;
+        for (const auto& [k, v] : sim->kv.all())
+            if (sim->core.settings().find(k.c_str())) keep.emplace(k, v);
         const scr::ScreenId at = sim->screens->host().target();
         // A screen the user picked would be lost to the new director's own choice: its touch hold carries over
         // (restarted at full length), so the director adopts the screen as on the old run.
         const bool held = sim->screens->director().exploring(sim->clock.millis());
         sim.reset();
         sim = std::make_unique<Sim>(p, &keep);
-        sim->screens->host().showNow(at);
+        if (at < scr::ScreenId::Alert) sim->screens->host().showNow(at);  // an alert's takeover isn't restored
         if (held) sim->screens->director().noteTouch(sim->clock.millis());
     }
     sim->step(float(dt));
