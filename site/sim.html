@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Contrail simulator</title>
+<meta name="description" content="Try Contrail in your browser: the real firmware, compiled to WebAssembly, on recorded flights over five airports.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+<script type="module" src="sim.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="favicon.svg" alt="">Contrail</a>
+    <nav aria-label="Site">
+      <a href="./">Showcase</a>
+      <a href="sim.html" aria-current="page">Simulator</a>
+      <a href="install.html">Install</a>
+      <a href="sd.html">SD card</a>
+      <a href="https://github.com/ChristopherJacob/contrail">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section>
+    <div class="wrap">
+      <h1>Simulator</h1>
+      <p class="lead">The real Contrail firmware, compiled to WebAssembly and running in your browser, on flights
+        recorded over five airports in the last hour. Tap and swipe the screen as you would the board.</p>
+
+      <div id="sim" class="sim">
+        <div class="sim-screen">
+          <div class="sim-device">
+            <canvas id="screen" width="240" height="320" aria-label="The simulated screen: tap or swipe it"></canvas>
+          </div>
+          <span class="led" id="led" title="The board's LED"></span>
+        </div>
+        <div class="sim-controls">
+          <label class="field" for="place">Place
+            <select class="input" id="place"></select></label>
+          <fieldset class="seg">
+            <legend>Theme</legend>
+            <label><input type="radio" name="theme" value="cinematic" checked> Cinematic Sky</label>
+            <label><input type="radio" name="theme" value="editorial"> Bold Editorial</label>
+          </fieldset>
+          <fieldset class="screens">
+            <legend>Screen</legend>
+            <button class="btn ghost" type="button" data-screen="0">Closest</button>
+            <button class="btn ghost" type="button" data-screen="1">Radar</button>
+            <button class="btn ghost" type="button" data-screen="2">Board</button>
+            <button class="btn ghost" type="button" data-screen="3">Sky</button>
+            <button class="btn ghost" type="button" data-screen="4">Map</button>
+            <button class="btn ghost" type="button" data-screen="5">Stats</button>
+          </fieldset>
+          <button class="btn ghost" id="alert" type="button">Show an alert</button>
+          <p class="status" id="status" aria-live="polite">Loading the simulator (about 1 MB)…</p>
+          <p class="note warn" id="failed" role="alert" hidden></p>
+          <button class="btn" id="retry" type="button" hidden>Try again</button>
+          <p class="muted" id="recorded"></p>
+          <p class="muted">Swipe sideways to change screens, press and hold for the quick settings, and tap a plane
+            to select it. Ready for the real thing? <a href="install.html">Install Contrail</a> on a board.</p>
+        </div>
+      </div>
+      <p class="note warn" id="unsupported" hidden>The simulator needs a browser with Web Workers and WebAssembly,
+        such as a current Chrome, Edge, Firefox or Safari.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Contrail is free software under the <a href="https://github.com/ChristopherJacob/contrail/blob/main/LICENSE">GPL-3.0</a>.</p>
+    <p>Airline logos are trademarks of their respective owners and are shown only to identify airlines; Contrail
+      is not affiliated with any airline.</p>
+    <p>Flight data: <a href="https://adsb.lol/">adsb.lol</a> (<a href="https://opendatacommons.org/licenses/odbl/">ODbL</a>);
+      routes: <a href="https://www.adsbdb.com/">adsbdb</a>. Map data: <a href="https://www.naturalearthdata.com/">Natural Earth</a>,
+      <a href="https://ourairports.com/data/">OurAirports</a> and <a href="https://www.geonames.org/">GeoNames</a>.</p>
+  </div>
+</footer>
+</body>
+</html>
