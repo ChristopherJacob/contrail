@@ -1,7 +1,7 @@
 # Contrail Sub-project 6b — Browser Simulator
 
 Date: 2026-11-07
-Status: Design approved; not built.
+Status: Built on `simulator`; checked in the browser.
 Parent: `2026-10-30-contrail-requirements.md` ("Browser simulator: the real renderer compiled to WebAssembly, fed
 live flights"). Builds on the desktop simulator (`firmware/src/main_sim.cpp`, `hal_native`), 6a (the site, the
 Pages workflow, the screenshots) and 6c (`site/mapdata/`, `build_map.py --regions`, `logos.pak` on the site).
@@ -43,7 +43,7 @@ board's web settings page, Wi-Fi setup, OTA.
 | Page | `site/sim.html`, `site/sim.js`, `site/sim-worker.js` | canvas, controls, the worker |
 | Site data | `tools/sim_site.py` | recordings, per-place `map.pak`, the WASM build into `site/sim/` |
 | Parity test | `tools/sim_node_test.mjs`, CI | WASM demo frames under Node equal the desktop `--render` frames |
-| Pages workflow | `.github/workflows/pages.yml` | hourly schedule, emscripten, the recorder, `sim_site.sh` |
+| Pages workflow | `.github/workflows/pages.yml` | hourly schedule, emscripten, the recorder, `sim_site.py` |
 
 ## 2. Running in the browser
 
@@ -110,8 +110,8 @@ places), each place's recording, and `map-<place>.pak` built with `build_map.py 
 --lon …` (6c's region data, already on the site). `logos.pak` is the one in `site/firmware/`; without a release the
 simulator runs with drawn tail fins, as a board without a card.
 
-The Pages workflow gains `schedule: cron "17 * * * *"` (hourly), installs emscripten (cached), builds `-e wasm`,
-records, and runs `sim_site.py`. A failed recording run deploys the site without the simulator's places rather than
+The Pages workflow gains `schedule: cron "17 * * * *"` (hourly), installs emscripten (cached), records (under `timeout 15m`, so a
+hung lookup cannot hold up the deploy), and runs `sim_site.py`, which builds with `tools/build_wasm.sh`. A failed recording run deploys the site without the simulator's places rather than
 failing the deploy; a failed WASM build fails it. Load: about 150 requests an hour to adsb.lol across the five
 places, and adsbdb lookups for the callsigns seen.
 
@@ -148,8 +148,53 @@ places, and adsbdb lookups for the callsigns seen.
   <theme>` (demo scenes, golden call order, no network). `tools/sim_node_test.mjs` runs the WASM build under Node
   for every screen and theme in `screenshots.sh` and compares each frame with the desktop simulator's PPM: they
   must be identical.
-- **HAL (CI, Node):** the adsb.lol and adsbdb URL mapping, the loop, `Range` reads, against a small recording in
-  `tools/fixtures/sim/`.
-- **Recorder (CI):** unit tests with the HTTP layer stubbed: file layout, routes, a failed place leaving nothing.
+- **HAL (CI, native Unity tests):** `test_replay` (the adsb.lol and adsbdb URL mapping, the replies in order, then the end) and
+  `test_range_storage` (`Range` reads in cached blocks, the write overlay, `MapPack` over it), in `pio test -e test`; `hal_wasm` has no emscripten in
+  those files, so they build natively.
+- **Recorder (CI):** `record_sky.py --selftest`, with the HTTP layer stubbed: file layout, routes, a failed place
+  leaving nothing, 429s and late replies.
 - **Page:** checked in the browser pane locally and on Pages: each place, both themes, every screen, taps and
   swipes, the quick-settings panel, the alert button, the loop seam, the bytes downloaded.
+
+## 9. As built
+
+Checked 2026-11-08 in the browser pane against `http-server` (which serves `Range` as GitHub Pages does), with a
+3-reply recording (a 60 s loop): every place loads and its planes move, with the recorded time in the place's own
+zone; both themes; all six screen buttons; a tap selects a plane; a sideways swipe changes screens; press and hold
+opens the quick-settings panel, and a theme change there moves the page's theme switch; "Show an alert" brings up
+the emergency takeover and the LED dot pulses red; at the loop the screen and theme stay; at 375 px the canvas fits
+and the controls stack below it. Nothing red in the console. Every request is for `localhost`; the `.pak` reads are
+`206` responses for 16 KB blocks (cached in the worker), never whole files.
+
+- **Build:** `tools/build_wasm.sh`, not a PlatformIO env: PlatformIO's native platform uses the host compiler.
+  `-I lib/core` only (a folder-level `-I` shadows system headers on macOS's case-insensitive file system).
+- **Site script:** `tools/sim_site.py`, not `.sh`; it builds the WASM itself and skips a place whose `index.json`
+  is missing or unreadable.
+- **Time zones:** the places carry IANA zones, and `firmware/lib/hal_wasm/localtime.js` replaces emscripten's
+  `_localtime_js` with one using `Intl.DateTimeFormat` in `Module.timeZone`, in place of `TZ` (which emscripten
+  ignores).
+- **Clocks:** `millis`/`micros` go through 64 bits before 32, so they wrap as the device's do.
+- **Storage:** `RangeStorage` is writable, with an in-memory overlay, because `MapPack` refuses storage that isn't
+  and the map's chart cache writes the chart; the saved chart lasts one loop.
+- **Pace:** adsb.lol allows about 20 requests a minute per IP, so recordings are 30 replies 20 s apart and the
+  simulator sets `poll_comm_s` to the recording's interval (§4 has the 429 and late-reply rules).
+- **Loop seam:** the place is loaded again at the loop, so trails and stats start afresh rather than planes jumping.
+  Only the keys `Settings` owns are kept (stats start afresh); the screen stays, and a touch hold in progress
+  carries over so the director doesn't move off it; an Alert screen isn't restored.
+- **Alerts:** a place's first start turns the low-pass and military alerts off (§6).
+- **Page:** the theme radios and the pressed screen button follow the device (`sim_theme_name`, `sim_screen`).
+  Touch samples are queued in the worker, one per step, with a tap given two pressed samples however short the
+  click; moves between are coalesced. A hidden tab pauses the worker. Frames are copied out of the WASM memory
+  before they are transferred.
+- **Routes:** looked up on adsbdb for the 12 nearest flights per reply (the board looks up its 8 nearest), once
+  each, after the replies.
+- **Numbers (2026-11-08, Chrome, localhost):** `contrail.wasm` 839,291 bytes (508 KB gzipped), `contrail.js`
+  14 KB. The worker is ready and draws its first frame in well under a second on localhost (the WASM's download is
+  the real cost on a slow link). One place, about 25 s cycling all six screens: 0.32-0.49 MB downloaded (Frederick
+  0.32, JFK 0.42, Heathrow 0.49, Schiphol 0.40, SFO 0.37), of which 190-240 KB of its `map.pak` in 12-15 Range
+  reads, 50-165 KB of `logos.pak` and the rest replies and routes; the 5 MB `logos.pak` and 0.3-0.6 MB maps are
+  never fetched whole.
+- **Emscripten:** 7.0.0, pinned in CI with `mymindstorm/setup-emsdk@v16` (cached).
+- **Known:** a settings change (the theme switch, a quick-settings edit) makes the firmware poll at once
+  (`CoreApp::applySettings` → `runSoon`), so the replay serves its next reply early: each change skips about one
+  interval of the recording and shortens that loop by one reply.
