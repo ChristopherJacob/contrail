@@ -4,6 +4,7 @@
 // does, for the parity test (tools/sim_node_test.mjs). Built by tools/build_wasm.sh.
 #include <emscripten/emscripten.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <map>
 #include <memory>
@@ -56,6 +57,7 @@ struct Place {
     double lat = 0, lon = 0;
     int64_t start = 0;
     int replies = 0;
+    int interval = 10;  // the recording's seconds between replies
 };
 
 struct Sim {
@@ -100,6 +102,8 @@ Sim::Sim(const Place& p, const std::map<std::string, std::string>* keep)
     std::snprintf(v, sizeof v, "%.4f", p.lon);
     s.set(svc::key::kLon, v);
     s.set(svc::key::kLocSet, "true");
+    // Polls as the recording was made, so the replay runs in real time; set on every start, so a loop keeps it.
+    s.set(svc::key::kPollComm, std::to_string(std::clamp(p.interval, 2, 60)).c_str());  // the setting's range
     if (!keep) s.set(svc::key::kTheme, p.theme.c_str());
     themeName = s.getEnum(svc::key::kTheme);
     logos.begin(&sd);
@@ -149,11 +153,11 @@ std::unique_ptr<Sim> sim;
 extern "C" {
 
 EMSCRIPTEN_KEEPALIVE int sim_start(const char* dir, double lat, double lon, double start, int replies,
-                                   const char* theme, const char* mapUrl, const char* logosUrl) {
+                                   int interval, const char* theme, const char* mapUrl, const char* logosUrl) {
     svc::logSink() = [](const char* line) { hal::wasm::postLog(line); };
     Place p;
     p.dir = dir, p.mapUrl = mapUrl, p.logosUrl = logosUrl, p.theme = theme;
-    p.lat = lat, p.lon = lon, p.start = int64_t(start), p.replies = replies;
+    p.lat = lat, p.lon = lon, p.start = int64_t(start), p.replies = replies, p.interval = interval;
     sim.reset();  // before the next is made: one place's stores at a time
     sim = std::make_unique<Sim>(p, nullptr);
     return 0;
