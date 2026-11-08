@@ -157,8 +157,14 @@ function at(e) {
 let pointer = null, lastAt = [0, 0];
 canvas.addEventListener("pointerdown", (e) => {
   if (pointer !== null) return;
+  // A swipe that leaves the canvas still ends on it. Without the capture its release could be missed and the touch
+  // never end, so such a press is ignored.
+  try {
+    canvas.setPointerCapture(e.pointerId);
+  } catch {
+    return;
+  }
   pointer = e.pointerId;
-  canvas.setPointerCapture(e.pointerId);  // a swipe that leaves the canvas still ends on it
   worker?.postMessage({ touch: [1, ...(lastAt = at(e))] });
 });
 canvas.addEventListener("pointermove", (e) => {
@@ -169,11 +175,14 @@ canvas.addEventListener("pointerup", (e) => {
   pointer = null;
   worker?.postMessage({ touch: [0, ...at(e)] });
 });
-// A cancel's position can be anywhere (the browser took the gesture): the release is where the touch last was.
-canvas.addEventListener("pointercancel", (e) => {
-  if (e.pointerId !== pointer) return;
-  pointer = null;
-  worker?.postMessage({ touch: [0, ...lastAt] });
-});
+// A cancel's position can be anywhere (the browser took the gesture), and a lost capture has no release of its own:
+// either releases where the touch last was. After a pointerup the capture's loss is ignored (pointer is null).
+for (const type of ["pointercancel", "lostpointercapture"]) {
+  canvas.addEventListener(type, (e) => {
+    if (e.pointerId !== pointer) return;
+    pointer = null;
+    worker?.postMessage({ touch: [0, ...lastAt] });
+  });
+}
 
 if (!$("sim").hidden) init();
