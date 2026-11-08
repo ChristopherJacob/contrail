@@ -29,17 +29,28 @@ HttpStatus answer(int status, const std::string& text, const BodyHandler& body) 
 
 }  // namespace
 
-ReplayHttp::ReplayHttp(Fetch fetch, std::string dir, int replies)
-    : fetch_(std::move(fetch)), dir_(std::move(dir)), replies_(replies) {}
+ReplayHttp::ReplayHttp(Fetch fetch, std::string dir, int replies, int intervalS, std::function<uint32_t()> ms)
+    : fetch_(std::move(fetch)),
+      dir_(std::move(dir)),
+      replies_(replies),
+      intervalMs_(std::max(1, intervalS) * 1000),
+      ms_(std::move(ms)),
+      base_(ms_()) {}
 
 HttpStatus ReplayHttp::get(const char* url, const Header*, int, const BodyHandler& body) {
     for (const char* feed : kFeeds) {
         if (!startsWith(url, feed)) continue;
-        if (served_ >= replies_) return ended_ = true, HttpStatus{-1};
-        char path[32];
-        std::snprintf(path, sizeof path, "/%03d.json", served_++);
-        Fetched f = fetch_(dir_ + path);
-        return answer(f.status, f.body, body);
+        // By elapsed time, not by poll count: the firmware also polls early (applySettings), which must not skip ahead.
+        const int k = int((ms_() - base_) / uint32_t(intervalMs_));
+        if (ended_ || k >= replies_) return ended_ = true, HttpStatus{-1};
+        if (k != current_) {
+            char path[32];
+            std::snprintf(path, sizeof path, "/%03d.json", k);
+            cur_ = fetch_(dir_ + path);
+            current_ = k;
+            ++served_;
+        }
+        return answer(cur_.status, cur_.body, body);
     }
     if (startsWith(url, kRoutes.c_str())) {
         loadRoutes();

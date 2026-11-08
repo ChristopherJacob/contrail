@@ -89,7 +89,7 @@ struct Sim {
 Sim::Sim(const Place& p, const std::map<std::string, std::string>* keep)
     : place(p),
       clock(hal::wasm::nowMs, p.start),
-      http(hal::wasm::fetchFile, p.dir, p.replies),
+      http(hal::wasm::fetchFile, p.dir, p.replies, p.interval, hal::wasm::nowMs),
       core(http, clock, kv),
       sd({{assets::LogoStore::kPath, p.logosUrl}, {basemap::MapPack::kPath, p.mapUrl}}, hal::wasm::fileSize,
          hal::wasm::fetchRange),

@@ -99,7 +99,7 @@ Emscripten's `localtime_r` takes the zone from JS `Date` (the visitor's) and ign
 - Places are recorded in parallel (one thread each), so a run takes about 10 minutes. A place whose recording
   fails keeps no files; the page lists only places with an `index.json`.
 - Playback: the simulator sets the community poll interval (`poll_comm_s`, a setting of 2-60 s) to the recording's
-  interval, as a board set to 20 s would run, so the replay is in real time. The HAL serves reply k at the k-th poll. After the last, the place is loaded again from its start (same
+  interval, as a board set to 20 s would run, so the replay is in real time. The HAL serves replies by elapsed time since the place started: reply k = elapsed / interval, and a poll the firmware makes early repeats the current reply. After the last (the first poll at replies × interval), the place is loaded again from its start (same
   screen, same settings), so trails and stats start afresh instead of planes jumping back. The page says when the
   recording was made.
 
@@ -195,6 +195,6 @@ and the controls stack below it. Nothing red in the console. Every request is fo
   reads, 50-165 KB of `logos.pak` and the rest replies and routes; the 5 MB `logos.pak` and 0.3-0.6 MB maps are
   never fetched whole.
 - **Emscripten:** 7.0.0, pinned in CI with `mymindstorm/setup-emsdk@v16` (cached).
-- **Known:** a settings change (the theme switch, a quick-settings edit) makes the firmware poll at once
-  (`CoreApp::applySettings` → `runSoon`), so the replay serves its next reply early: each change skips about one
-  interval of the recording and shortens that loop by one reply.
+- **Replies by elapsed time:** a settings change (the theme switch, a quick-settings edit) makes the firmware poll
+  at once (`CoreApp::applySettings` → `runSoon`), so `ReplayHttp` serves reply = elapsed / interval, not the next one;
+  an early poll repeats the current reply (cached, no refetch) and the recording keeps its pace.

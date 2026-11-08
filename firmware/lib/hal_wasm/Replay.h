@@ -20,10 +20,13 @@ using Fetch = std::function<Fetched(const std::string& path)>;
 
 class ReplayHttp : public IHttp {
    public:
-    // dir: the place's folder ("sim/kfdk"); replies: how many NNN.json it holds.
-    ReplayHttp(Fetch fetch, std::string dir, int replies);
-    // A community feed URL (any of the three hosts, Providers.cpp) gets the next reply in order. After the last,
-    // the next poll fails and ended() turns true: the caller loads the place again. An adsbdb callsign URL
+    // dir: the place's folder ("sim/kfdk"); replies: how many NNN.json it holds, recorded intervalS seconds apart;
+    // ms: a millisecond counter (the one the ReplayClock reads), the playback starting when this is built.
+    ReplayHttp(Fetch fetch, std::string dir, int replies, int intervalS, std::function<uint32_t()> ms);
+    // A community feed URL (any of the three hosts, Providers.cpp) gets the reply of the elapsed time: reply
+    // elapsed / interval. A poll the firmware makes early (a settings change polls at once) repeats the current
+    // reply, so the recording keeps its pace. At the first poll past the last reply the poll fails and ended()
+    // turns true: the caller loads the place again. An adsbdb callsign URL
     // (Routes.cpp) gets the recorded route, or 404 as adsbdb answers an unknown callsign. Anything else fails
     // without a request.
     HttpStatus get(const char* url, const Header* headers, int nHeaders, const BodyHandler& body) override;
@@ -31,13 +34,18 @@ class ReplayHttp : public IHttp {
         return {-1};
     }
     bool ended() const { return ended_; }
-    int served() const { return served_; }
+    int served() const { return served_; }  // distinct replies handed out
 
    private:
     void loadRoutes();
     Fetch fetch_;
     std::string dir_;
     int replies_;
+    int intervalMs_;
+    std::function<uint32_t()> ms_;
+    uint32_t base_;
+    int current_ = -1;  // the reply index cached in cur_
+    Fetched cur_;
     int served_ = 0;
     bool ended_ = false;
     bool routesLoaded_ = false;

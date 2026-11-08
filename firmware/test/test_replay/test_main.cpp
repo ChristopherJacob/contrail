@@ -16,6 +16,9 @@ void tearDown() {}
 
 static std::map<std::string, hal::Fetched> files;
 static int fetches = 0;
+static uint32_t fakeMs = 0;  // the worker's millisecond counter
+static uint32_t nowFake() { return fakeMs; }
+static void later(uint32_t s) { fakeMs += s * 1000; }
 static hal::Fetched fakeFetch(const std::string& path) {
     ++fetches;
     auto it = files.find(path);
@@ -35,17 +38,20 @@ static void reset() {
              {"sim/kfdk/001.json", {200, "r1"}},
              {"sim/kfdk/routes.json", {200, R"({"UAL53":{"response":{"flightroute":{"callsign":"UAL53"}}},"N1":null})"}}};
     fetches = 0;
+    fakeMs = 7000;  // not 0: the playback starts at construction, wherever the counter is
 }
 
 static void test_replies_in_order_then_the_end() {
     reset();
-    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 2);
+    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 2, 20, nowFake);
     TEST_ASSERT_EQUAL(200, get(http, "https://api.adsb.lol/v2/point/39.4176/-77.3743/25").code);
     TEST_ASSERT_EQUAL_STRING("r0", body.c_str());
     TEST_ASSERT_FALSE(http.ended());
+    later(20);
     TEST_ASSERT_EQUAL(200, get(http, "https://api.adsb.lol/v2/point/39.4176/-77.3743/25").code);
     TEST_ASSERT_EQUAL_STRING("r1", body.c_str());
     TEST_ASSERT_FALSE(http.ended());
+    later(20);
     TEST_ASSERT_TRUE(get(http, "https://api.adsb.lol/v2/point/39.4176/-77.3743/25").code < 0);
     TEST_ASSERT_TRUE(http.ended());
     TEST_ASSERT_EQUAL(2, http.served());
@@ -53,9 +59,10 @@ static void test_replies_in_order_then_the_end() {
 
 static void test_every_community_host_gets_the_recording() {
     reset();
-    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 2);
+    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 2, 20, nowFake);
     TEST_ASSERT_EQUAL(200, get(http, "https://opendata.adsb.fi/api/v3/lat/39.4/lon/-77.4/dist/25").code);
     TEST_ASSERT_EQUAL_STRING("r0", body.c_str());
+    later(20);
     TEST_ASSERT_EQUAL(200, get(http, "https://api.airplanes.live/v2/point/39.4/-77.4/25").code);
     TEST_ASSERT_EQUAL_STRING("r1", body.c_str());
 }
@@ -63,15 +70,16 @@ static void test_every_community_host_gets_the_recording() {
 static void test_a_missing_reply_fails_the_poll() {
     reset();
     files.erase("sim/kfdk/001.json");
-    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 2);
+    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 2, 20, nowFake);
     get(http, "https://api.adsb.lol/v2/point/1/2/25");
+    later(20);
     TEST_ASSERT_EQUAL(404, get(http, "https://api.adsb.lol/v2/point/1/2/25").code);
     TEST_ASSERT_EQUAL_STRING("", body.c_str());  // no body handler for a non-2xx reply
 }
 
 static void test_routes_recorded_unknown_and_missing() {
     reset();
-    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 2);
+    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 2, 20, nowFake);
     TEST_ASSERT_EQUAL(200, get(http, "https://api.adsbdb.com/v0/callsign/UAL53").code);
     TEST_ASSERT_EQUAL_STRING(R"({"response":{"flightroute":{"callsign":"UAL53"}}})", body.c_str());
     TEST_ASSERT_EQUAL(404, get(http, "https://api.adsbdb.com/v0/callsign/N1").code);
@@ -83,19 +91,18 @@ static void test_routes_recorded_unknown_and_missing() {
 static void test_no_routes_file_means_every_route_is_unknown() {
     reset();
     files.erase("sim/kfdk/routes.json");
-    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 2);
+    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 2, 20, nowFake);
     TEST_ASSERT_EQUAL(404, get(http, "https://api.adsbdb.com/v0/callsign/UAL53").code);
 }
 
 static void test_other_urls_fail_without_a_request() {
     reset();
-    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 2);
+    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 2, 20, nowFake);
     TEST_ASSERT_TRUE(get(http, "https://opensky-network.org/api/states/all").code < 0);
     TEST_ASSERT_TRUE(http.post("https://x/", nullptr, 0, "text/plain", "", [](hal::IByteSource&) {}).code < 0);
     TEST_ASSERT_EQUAL(0, fetches);
 }
 
-static uint32_t fakeMs = 0;
 static void test_clock_runs_from_the_recording_start() {
     fakeMs = 5000;
     hal::ReplayClock clock([] { return fakeMs; }, 1762500000);
@@ -127,7 +134,7 @@ static void test_memstore() {
 
 static void test_zero_replies_ends_on_the_first_poll() {
     reset();
-    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 0);
+    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 0, 20, nowFake);
     TEST_ASSERT_TRUE(get(http, "https://api.adsb.lol/v2/point/1/2/25").code < 0);
     TEST_ASSERT_TRUE(http.ended());
     TEST_ASSERT_EQUAL(0, fetches);
@@ -135,9 +142,10 @@ static void test_zero_replies_ends_on_the_first_poll() {
 
 static void test_polls_after_the_end_keep_failing_without_fetching() {
     reset();
-    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 1);
+    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 1, 20, nowFake);
     get(http, "https://api.adsb.lol/v2/point/1/2/25");
     TEST_ASSERT_EQUAL(1, fetches);
+    later(20);
     for (int i = 0; i < 3; ++i) TEST_ASSERT_TRUE(get(http, "https://opendata.adsb.fi/api/v3/lat/1/lon/2/dist/25").code < 0);
     TEST_ASSERT_TRUE(http.ended());
     TEST_ASSERT_EQUAL(1, fetches);
@@ -148,7 +156,7 @@ static void test_bad_routes_file_means_every_route_is_unknown() {
     for (const char* bad : {"{not json", "[1,2]", "\"x\"", ""}) {
         reset();
         files["sim/kfdk/routes.json"] = {200, bad};
-        hal::ReplayHttp http(fakeFetch, "sim/kfdk", 2);
+        hal::ReplayHttp http(fakeFetch, "sim/kfdk", 2, 20, nowFake);
         TEST_ASSERT_EQUAL(404, get(http, "https://api.adsbdb.com/v0/callsign/UAL53").code);
         TEST_ASSERT_EQUAL(404, get(http, "https://api.adsbdb.com/v0/callsign/N1").code);
     }
@@ -158,7 +166,7 @@ static void test_bad_routes_file_means_every_route_is_unknown() {
 static void test_the_real_community_provider_parses_the_recording() {
     reset();
     files["sim/kfdk/000.json"] = {200, R"({"ac":[{"hex":"a1b2c3","flight":"UAL53 ","alt_baro":4500,"gs":120,"track":270,"lat":37.70,"lon":-122.30,"seen":1.0}]})"};
-    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 2);
+    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 2, 20, nowFake);
     model::AircraftStore store;
     store.configure(37.62, -122.38, 25);
     prov::CommunityProvider p;
@@ -173,7 +181,7 @@ static void test_the_real_community_provider_parses_the_recording() {
 static void test_the_real_adsbdb_client_reads_recorded_routes() {
     reset();
     files["sim/kfdk/routes.json"] = {200, R"({"UAL53":{"response":{"flightroute":{"origin":{"iata_code":"SFO"},"destination":{"iata_code":"IAD"}}}},"N1":null})"};
-    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 2);
+    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 2, 20, nowFake);
     prov::AdsbdbClient c;
     prov::Route r;
     TEST_ASSERT_TRUE(c.lookup(http, "UAL53", 1000, r));
@@ -184,6 +192,54 @@ static void test_the_real_adsbdb_client_reads_recorded_routes() {
     TEST_ASSERT_FALSE(r.known);
     TEST_ASSERT_TRUE(c.lookup(http, "DAL1", 1000, r));
     TEST_ASSERT_FALSE(r.known);
+}
+
+static void test_an_early_poll_repeats_the_reply_without_fetching() {
+    reset();
+    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 2, 20, nowFake);
+    const char* url = "https://api.adsb.lol/v2/point/1/2/25";
+    get(http, url);
+    later(3);  // a settings change polls at once
+    TEST_ASSERT_EQUAL(200, get(http, url).code);
+    TEST_ASSERT_EQUAL_STRING("r0", body.c_str());
+    later(16);  // 19 s in: still the first interval
+    get(http, url);
+    TEST_ASSERT_EQUAL_STRING("r0", body.c_str());
+    TEST_ASSERT_EQUAL(1, fetches);
+    TEST_ASSERT_EQUAL(1, http.served());
+    TEST_ASSERT_FALSE(http.ended());
+}
+
+static void test_the_reply_follows_the_time() {
+    reset();
+    files["sim/kfdk/002.json"] = {200, "r2"};
+    files["sim/kfdk/003.json"] = {200, "r3"};
+    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 4, 20, nowFake);
+    const char* url = "https://api.adsb.lol/v2/point/1/2/25";
+    later(41);  // the first poll can be late: 41 s in is reply 2
+    get(http, url);
+    TEST_ASSERT_EQUAL_STRING("r2", body.c_str());
+    later(19);  // 60 s: reply 3
+    get(http, url);
+    TEST_ASSERT_EQUAL_STRING("r3", body.c_str());
+    TEST_ASSERT_EQUAL(2, http.served());  // distinct replies served
+    later(19);  // 79 s: still reply 3
+    get(http, url);
+    TEST_ASSERT_EQUAL_STRING("r3", body.c_str());
+    TEST_ASSERT_EQUAL(2, fetches);
+}
+
+static void test_the_end_comes_after_replies_times_interval() {
+    reset();
+    hal::ReplayHttp http(fakeFetch, "sim/kfdk", 2, 20, nowFake);
+    const char* url = "https://api.adsb.lol/v2/point/1/2/25";
+    later(39);
+    TEST_ASSERT_EQUAL(200, get(http, url).code);
+    TEST_ASSERT_FALSE(http.ended());
+    later(1);  // 40 s = 2 * 20
+    TEST_ASSERT_TRUE(get(http, url).code < 0);
+    TEST_ASSERT_TRUE(http.ended());
+    TEST_ASSERT_EQUAL(1, fetches);
 }
 
 int main(int, char**) {
@@ -201,5 +257,8 @@ int main(int, char**) {
     RUN_TEST(test_bad_routes_file_means_every_route_is_unknown);
     RUN_TEST(test_the_real_community_provider_parses_the_recording);
     RUN_TEST(test_the_real_adsbdb_client_reads_recorded_routes);
+    RUN_TEST(test_an_early_poll_repeats_the_reply_without_fetching);
+    RUN_TEST(test_the_reply_follows_the_time);
+    RUN_TEST(test_the_end_comes_after_replies_times_interval);
     return UNITY_END();
 }
