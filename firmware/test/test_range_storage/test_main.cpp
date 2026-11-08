@@ -99,6 +99,8 @@ static void test_the_least_recently_used_block_is_the_one_dropped() {
 
 static void test_writes_are_read_back() {
     hal::RangeStorage sd = make();
+    data.resize(hal::RangeFile::kBlock * (hal::RangeFile::kBlocks + 3) - 1000);  // room to turn the cache over
+    const uint32_t end = uint32_t(data.size());
     hal::IFile* f = sd.open("/contrail/map.pak");
     // Into a block not read yet: the rest of the block keeps the site's bytes.
     const char w[] = "hello";
@@ -116,16 +118,20 @@ static void test_writes_are_read_back() {
     TEST_ASSERT_EQUAL_MEMORY(data.data() + 16384 - 50, big, 10);
     TEST_ASSERT_EQUAL_MEMORY(x.data(), big + 10, 100);
     TEST_ASSERT_EQUAL_MEMORY(data.data() + 16384 + 60, big + 110, 10);
-    // Written blocks are never evicted: still there after the cache turns over.
+    // Written blocks are never evicted: still there, without a refetch, after the cache turns over.
     char c;
-    for (int b = 0; b < 2; ++b) TEST_ASSERT_TRUE(f->readAt(b * hal::RangeFile::kBlock, &c, 1));
+    for (int b = 2; b < hal::RangeFile::kBlocks + 3; ++b) TEST_ASSERT_TRUE(f->readAt(b * hal::RangeFile::kBlock, &c, 1));
+    requests = 0;
     TEST_ASSERT_TRUE(f->readAt(20000, buf, 5));
     TEST_ASSERT_EQUAL_MEMORY(w, buf, 5);
+    TEST_ASSERT_TRUE(f->readAt(16384 - 40, big, 100));
+    TEST_ASSERT_EQUAL_MEMORY(x.data(), big, 100);
+    TEST_ASSERT_EQUAL(0, requests);
     // The last block is short; writing at its end works, past it does not.
-    TEST_ASSERT_TRUE(f->writeAt(40000 - 4, w, 4));
-    TEST_ASSERT_FALSE(f->writeAt(40000 - 4, w, 5));
-    TEST_ASSERT_FALSE(f->writeAt(40001, w, 0));
-    TEST_ASSERT_EQUAL(40000, f->size());  // files do not grow
+    TEST_ASSERT_TRUE(f->writeAt(end - 4, w, 4));
+    TEST_ASSERT_FALSE(f->writeAt(end - 4, w, 5));
+    TEST_ASSERT_FALSE(f->writeAt(end + 1, w, 0));
+    TEST_ASSERT_EQUAL_UINT32(end, f->size());  // files do not grow
 }
 
 static void test_a_write_needs_the_block_to_be_fetched() {

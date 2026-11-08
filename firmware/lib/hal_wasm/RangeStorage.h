@@ -27,7 +27,8 @@ class RangeFile : public IFile {
     uint32_t size() const override { return size_; }
     bool readAt(uint32_t offset, void* buf, uint32_t n) override;
     // The map saves its drawn chart inside map.pak. The site's file can't change, so writes land in blocks kept in
-    // memory for the visit (never evicted, ~135 KB for the chart); reads see them. Never past size().
+    // memory for the visit (never evicted, ~135 KB for the chart); reads see them. Never past size(). A write across
+    // blocks whose later fetch fails may leave the earlier block patched: within writeAt's contract (unknown after a failure).
     bool writeAt(uint32_t offset, const void* buf, uint32_t n) override;
 
    private:
