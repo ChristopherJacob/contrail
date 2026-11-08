@@ -29,6 +29,7 @@ const header = Buffer.from("P6\n240 320\n255\n");
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "contrail-sim-"));
 const shot = path.join(tmp, "desktop.ppm");
 let bad = 0;
+try {
 for (const theme of ["cinematic", "editorial"]) {
   for (const pair of pairs) {
     const [screen, scene] = pair.split(":");
@@ -54,6 +55,8 @@ for (const theme of ["cinematic", "editorial"]) {
     if (diff) ++bad;
   }
 }
-fs.rmSync(tmp, { recursive: true, force: true });
+} finally {
+  fs.rmSync(tmp, { recursive: true, force: true });
+}
 console.log(bad ? `${bad} of ${pairs.length * 2} differ` : `all ${pairs.length * 2} the same`);
 process.exit(bad ? 1 : 0);

@@ -49,10 +49,15 @@ class Spacer:
                 self.sleep(delay)
             self.last = self.clock()
 
+    def hold(self, seconds):
+        """Nothing goes out for `seconds` from now: a host's rate limit applies to every thread's requests."""
+        with self.lock:
+            self.last = max(self.last, self.clock() + seconds - self.gap)
 
-def http_get(url, spacer, opener=urllib.request.urlopen, sleep=time.sleep):
-    """(status, body); status -1 when the request could not be made. A 429 waits out its Retry-After (capped) and
-    asks once more, so a place's reply isn't lost to a brief limit."""
+
+def http_get(url, spacer, opener=urllib.request.urlopen):
+    """(status, body); status -1 when the request could not be made. A 429 holds the host's spacer for its
+    Retry-After (capped), so every thread backs off together, and asks once more."""
     for attempt in range(2):
         spacer.wait()
         req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
@@ -66,7 +71,7 @@ def http_get(url, spacer, opener=urllib.request.urlopen, sleep=time.sleep):
                 wait = float(e.headers.get("Retry-After", 10))
             except (TypeError, ValueError):
                 wait = 10.0  # an HTTP-date or junk: a short guess
-            sleep(min(max(wait, 0.0), MAX_RETRY_AFTER_S))
+            spacer.hold(min(max(wait, 0.0), MAX_RETRY_AFTER_S))
         except (urllib.error.URLError, OSError):
             return -1, b""
 
@@ -83,9 +88,13 @@ def nearest_callsigns(body, lat, lon, n=NEAREST):
     seen = []
     for ac in json.loads(body).get("ac", []):
         cs = callsign(ac)
-        if not cs or not isinstance(ac.get("lat"), (int, float)) or not isinstance(ac.get("lon"), (int, float)):
+        la, lo = ac.get("lat"), ac.get("lon")
+        if la is None:  # ReadsbParser.cpp: an aircraft without a fix reports its last position
+            last = ac.get("lastPosition") or {}
+            la, lo = last.get("lat"), last.get("lon")
+        if not cs or not isinstance(la, (int, float)) or not isinstance(lo, (int, float)):
             continue
-        seen.append((60 * math.hypot(ac["lat"] - lat, (ac["lon"] - lon) * k), cs))
+        seen.append((60 * math.hypot(la - lat, (lo - lon) * k), cs))
     out = []
     for _, cs in sorted(seen):
         if cs not in out:
@@ -97,36 +106,42 @@ class RecordError(Exception):
     pass
 
 
-def record_place(place, out_dir, replies, get, feed, routes_spacer, clock=time.time, sleep=time.sleep):
-    """Records one place into out_dir/<id> (built in <id>.tmp, then moved). Raises RecordError."""
+def record_place(place, out_dir, replies, get, feed, routes_spacer, clock=time.monotonic, sleep=time.sleep,
+                 wall=time.time):
+    """Records one place into out_dir/<id> (built in <id>.tmp, then moved). Raises RecordError. The cadence runs on
+    `clock`, reply k due at t0 + k * INTERVAL_S, so a slow reply doesn't push the rest; one that lands more than an
+    interval late fails the place, as a replay would otherwise jump."""
     final = os.path.join(out_dir, place["id"])
     tmp = final + ".tmp"
     shutil.rmtree(tmp, ignore_errors=True)
     os.makedirs(tmp)
     try:
-        start = int(clock())
         url = FEED.format(lat=place["lat"], lon=place["lon"], radius=RADIUS_NM)
         wanted = []
+        start = t0 = 0
         for k in range(replies):
-            began = clock()
+            if k:
+                sleep(max(0.0, t0 + k * INTERVAL_S - clock()))
             status, body = get(url, feed)
-            if status != 200:
-                status, body = get(url, feed)  # one retry
+            if status == -1 or status >= 500:
+                status, body = get(url, feed)  # one retry; a 429 was already retried by http_get
             if status != 200:
                 raise RecordError(f"{place['id']}: reply {k}: HTTP {status}")
+            if k == 0:
+                start, t0 = int(wall()), clock()
+            elif clock() > t0 + (k + 1) * INTERVAL_S:
+                raise RecordError(f"{place['id']}: reply {k}: more than {INTERVAL_S} s late")
             try:
                 for cs in nearest_callsigns(body, place["lat"], place["lon"]):
                     if cs not in wanted:
                         wanted.append(cs)
-            except (ValueError, AttributeError) as e:
+            except (ValueError, AttributeError, TypeError) as e:
                 raise RecordError(f"{place['id']}: reply {k}: not a feed reply ({e})")
             with open(os.path.join(tmp, f"{k:03d}.json"), "wb") as f:
                 f.write(body)
-            if k + 1 < replies:
-                sleep(max(0.0, INTERVAL_S - (clock() - began)))
         routes = {}
         for cs in wanted:  # after the replies, so the lookups don't delay them
-            status, body = get(ROUTE.format(cs=urllib.parse.quote(cs)), routes_spacer)
+            status, body = get(ROUTE.format(cs=urllib.parse.quote(cs, safe="")), routes_spacer)
             if status == 200:
                 try:
                     routes[cs] = json.loads(body)
@@ -144,6 +159,7 @@ def record_place(place, out_dir, replies, get, feed, routes_spacer, clock=time.t
         return index
     except BaseException:
         shutil.rmtree(tmp, ignore_errors=True)
+        shutil.rmtree(final, ignore_errors=True)  # an earlier run's recording must not pass for this one's
         raise
 
 
@@ -192,56 +208,122 @@ def selftest():
         t[0] += s
 
     def get(url, spacer):
-        calls.append(url)
+        calls.append((url, t[0]))
+        t[0] += 3  # a request takes time, so the cadence has to be scheduled, not slept
         if "adsb.lol" in url:
             return 200, reply
         if url.endswith("/UAL53"):
             return 200, b'{"response":{"flightroute":{"callsign":"UAL53"}}}'
         if url.endswith("/N1"):
             return 404, b""
-        return 500, b""  # DAL1: adsbdb failing leaves the callsign out
+        return 500, b""  # DAL1: a failed adsbdb lookup is left out, and replays as unknown (404)
 
     with tempfile.TemporaryDirectory() as d:
         sp = Spacer(0)
-        index = record_place(place, d, 3, get, sp, sp, clock=clock, sleep=sleep)
+        index = record_place(place, d, 3, get, sp, sp, clock=clock, sleep=sleep, wall=clock)
         got = sorted(os.listdir(os.path.join(d, "kfdk")))
         assert got == ["000.json", "001.json", "002.json", "index.json", "routes.json"], got
         assert open(os.path.join(d, "kfdk", "001.json"), "rb").read() == reply
         routes = json.load(open(os.path.join(d, "kfdk", "routes.json")))
         assert routes == {"N1": None, "UAL53": {"response": {"flightroute": {"callsign": "UAL53"}}}}, routes
-        assert index["start"] == 1000 and index["replies"] == 3 and index["interval"] == 20 and index["zone"]
-        assert calls[0] == "https://api.adsb.lol/v2/point/39.4000/-77.4000/25", calls[0]
-        assert sum("adsb.lol" in c for c in calls) == 3  # each callsign looked up once, after the replies
-        assert calls[3:] == ["https://api.adsbdb.com/v0/callsign/N1", "https://api.adsbdb.com/v0/callsign/UAL53",
-                             "https://api.adsbdb.com/v0/callsign/DAL1"], calls[3:]
-        assert t[0] == 1040.0, t[0]  # two 20 s gaps, none after the last reply
+        # start is taken when reply 0 is in, not before the request
+        assert index["start"] == 1003 and index["replies"] == 3 and index["interval"] == 20 and index["zone"]
+        assert calls[0][0] == "https://api.adsb.lol/v2/point/39.4000/-77.4000/25", calls[0]
+        assert sum("adsb.lol" in c for c, _ in calls) == 3  # each callsign looked up once, after the replies
+        assert [c for c, _ in calls[3:]] == ["https://api.adsbdb.com/v0/callsign/N1",
+                                             "https://api.adsbdb.com/v0/callsign/UAL53",
+                                             "https://api.adsbdb.com/v0/callsign/DAL1"], calls[3:]
+        # reply k is requested at t0 + 20 k, t0 being when reply 0 came in, whatever each request took
+        assert [at for _, at in calls[:3]] == [1000.0, 1023.0, 1043.0], calls[:3]
+
+        # a failing feed (5xx, retried once) raises and leaves no folder, not even an earlier run's
+        os.makedirs(os.path.join(d, "eham"))
+        n = [0]
 
         def failing(url, spacer):
-            return (503, b"") if url.endswith("/25") and failing.n >= 1 else (200, reply)
-        failing.n = 0
-
-        def counting(url, spacer):
-            r = failing(url, spacer)
-            failing.n += "adsb.lol" in url
-            return r
+            n[0] += 1
+            return (503, b"") if n[0] > 1 else (200, reply)
         try:
-            record_place(dict(place, id="eham"), d, 3, counting, sp, sp, clock=clock, sleep=sleep)
+            record_place(dict(place, id="eham"), d, 3, failing, sp, sp, clock=clock, sleep=sleep, wall=clock)
             raise AssertionError("a failing feed must raise")
         except RecordError:
             pass
+        assert n[0] == 3  # reply 1 and its one retry
         assert sorted(os.listdir(d)) == ["kfdk"], os.listdir(d)  # no eham, no eham.tmp
+
+        # a 429 reaching record_place was already retried by http_get: asked once per reply, not again
+        n[0] = 0
+
+        def limited(url, spacer):
+            n[0] += 1
+            return 429, b""
+        try:
+            record_place(place, d, 3, limited, sp, sp, clock=clock, sleep=sleep, wall=clock)
+            raise AssertionError("a limited feed must raise")
+        except RecordError:
+            pass
+        assert n[0] == 1, n[0]
+        assert sorted(os.listdir(d)) == [], os.listdir(d)  # the failed place's earlier folder is gone too
+
+        # a reply more than an interval late (a long 429 wait) fails the place
+        def late(url, spacer):
+            late.n += 1
+            t[0] += 45 if late.n == 2 else 0
+            return 200, reply
+        late.n = 0
+        try:
+            record_place(place, d, 3, late, sp, sp, clock=clock, sleep=sleep, wall=clock)
+            raise AssertionError("a late reply must raise")
+        except RecordError as e:
+            assert "late" in str(e), e
+
+        # not feed replies: "ac" null, a body that isn't an object
+        for bad in (b'{"ac":null}', b"[]", b"not json"):
+            try:
+                record_place(place, d, 1, lambda u, s_, bad=bad: (200, bad), sp, sp, clock=clock, sleep=sleep)
+                raise AssertionError(bad)
+            except RecordError:
+                pass
 
         assert record_all([place, dict(place, id="egll")], d, 2, get=get, sleep=lambda s: None) == ["kfdk", "egll"]
 
-    # 429: Retry-After is waited out (capped) and the request made once more; a second 429 is returned.
+    # a flight without a fix reports lastPosition (ReadsbParser.cpp)
+    lp = json.dumps({"ac": [{"flight": "LP1", "lastPosition": {"lat": 39.4, "lon": -77.4}},
+                            {"flight": "NOPOS", "lastPosition": {}}]}).encode()
+    assert nearest_callsigns(lp, 39.4, -77.4) == ["LP1"]
+
+    # Spacer: gap between requests, and hold() delays the next one for every thread
+    ft = [0.0]
+    slept = []
+
+    def fsleep(s):
+        slept.append(s)
+        ft[0] += s
+    spc = Spacer(1.0, clock=lambda: ft[0], sleep=fsleep)
+    spc.wait()
+    spc.wait()
+    assert slept == [1.0], slept
+    slept.clear()
+    spc.hold(30)
+    spc.wait()
+    assert slept == [30.0], slept
+
+    # 429: the spacer is held for Retry-After (capped) and the request made once more; a second 429 is returned.
     class Resp:
         status = 200
-        def __enter__(self): return self
-        def __exit__(self, *a): return False
-        def read(self): return b"{}"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b"{}"
 
     def opener_for(seq):
         seq = list(seq)
+
         def opener(req, timeout):
             assert req.get_header("User-agent") == USER_AGENT
             x = seq.pop(0)
@@ -249,12 +331,15 @@ def selftest():
                 return Resp()
             raise urllib.error.HTTPError(req.full_url, 429, "", {"Retry-After": x}, None)
         return opener
-    waits = []
-    assert http_get("https://x.test/", Spacer(0), opener_for(["7", "ok"]), waits.append) == (200, b"{}") and waits == [7.0], waits
-    waits.clear()
-    assert http_get("https://x.test/", Spacer(0), opener_for(["500", "9"]), waits.append) == (429, b"") and waits == [60.0], waits
-    waits.clear()
-    assert http_get("https://x.test/", Spacer(0), opener_for(["soon", "ok"]), waits.append) == (200, b"{}") and waits == [10.0]
+
+    def held(seq):
+        ft[0] = 0.0
+        slept.clear()
+        spc = Spacer(1.0, clock=lambda: ft[0], sleep=fsleep)
+        return http_get("https://x.test/", spc, opener_for(seq)), sum(slept)
+    assert held(["7", "ok"]) == ((200, b"{}"), 7.0)
+    assert held(["500", "9"]) == ((429, b""), 60.0)
+    assert held(["soon", "ok"]) == ((200, b"{}"), 10.0)
     print("record_sky selftest: ok")
 
 

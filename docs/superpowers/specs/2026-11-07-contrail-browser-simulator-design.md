@@ -90,7 +90,7 @@ Emscripten's `localtime_r` takes the zone from JS `Date` (the visitor's) and ign
   its Retry-After (at most 60 s) and asks once more; a reply that still fails fails the place.
 - Collects the callsigns of the 12 nearest flights in each reply (the board looks up its 8 nearest) and, after the
   replies, looks each up once on adsbdb, storing `<place>/routes.json` (callsign → the
-  reply body, or null for a 404). Requests are spaced (at least 1 s apart per host) and carry the project's
+  reply body, or null for a 404). Requests are spaced (at least 1 s apart to adsb.lol, 0.5 s to adsbdb, across the threads) and carry the project's
   User-Agent.
 - Writes `<place>/index.json`: the place, the start epoch (UTC), the interval (20), the reply count (30).
 - Places are recorded in parallel (one thread each), so a run takes about 10 minutes. A place whose recording
