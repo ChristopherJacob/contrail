@@ -25,11 +25,11 @@
 #include "alerts/AlertConfig.h"
 #include "alerts/AlertRules.h"
 #include "app/CoreApp.h"
+#include "app/DemoRender.h"
 #include "app/PanelBridge.h"
 #include "assets/LogoStore.h"
 #include "map/MapPack.h"
 #include "gfx/StripRenderer.h"
-#include "screens/DemoScenes.h"
 #include "screens/ScreenApp.h"
 #include "services/Log.h"
 
@@ -74,93 +74,28 @@ static std::string settingsPath() {
     return dir + "/settings.json";
 }
 
-// The busy scene with an emergency takeover on its first flight, set in the scene as the alert goldens do
-// (test/test_alert_screen), so no alert engine or clock is involved.
-static void sceneBusyEmergency(scr::Scene& s) {
-    scr::sceneBusy(s);
-    scr::SceneAlert& a = s.alert;
-    a = scr::SceneAlert{};
-    a.active = true, a.kind = scr::AlertKind::Emergency, a.live = true;
-    a.flight = s.flights[0];
-    a.startMs = 1000, a.endsMs = 31000;
-    std::strcpy(a.flight.squawk, "7700"), a.flight.emergency = true;
-}
-
-// Every flight stepped `seconds` back along its track, as test_map_screen's backInTime.
-static void backInTime(scr::Scene& s, float seconds) {
-    for (int i = 0; i < s.count; ++i) {
-        scr::SceneFlight& f = s.flights[i];
-        float b = f.bearingDeg * 0.0174533f, t = f.trackDeg * 0.0174533f, d = f.gsKt * seconds / 3600.f;
-        float e = f.distNm * std::sin(b) - d * std::sin(t), n = f.distNm * std::cos(b) - d * std::cos(t);
-        f.distNm = std::sqrt(e * e + n * n);
-        f.bearingDeg = std::fmod(std::atan2(e, n) / 0.0174533f + 360.f, 360.f);
-    }
-    s.epoch -= int64_t(seconds);
-}
-
-// --render: one demo scene on one screen in one theme, drawn in the golden tests' call order
-// (test/common/GoldenRender.h: fill, sceneUpdated, showNow, 75 frames of 1/30 s, no tick), so the shot
-// matches the goldens and is the same on every run. As their goldens do, the Map gets 70 s of trails
-// (8 scene updates, as test_map_screen's map_busy) and the Sky 100 frames (sky_night: a beacon lit). No network, no settings file, no SDL window; an SD
-// card (logos, map pack) only when CONTRAIL_SD names a folder.
+// --render: one demo scene on one screen in one theme (app::renderDemo), with no network, no settings file and no
+// SDL window; an SD card (logos, map pack) only when CONTRAIL_SD names a folder.
 static int renderShot(const char* sceneName, const char* screenName, const char* themeName, const char* out) {
-    struct NamedScene { const char* name; void (*fill)(scr::Scene&); };
-    static const NamedScene kScenes[] = {
-        {"busy", scr::sceneBusy}, {"quiet", scr::sceneQuiet}, {"night", scr::sceneNight},
-        {"empty", scr::sceneEmpty}, {"stats", scr::sceneStats},
-    };
-    struct NamedScreen { const char* name; scr::ScreenId id; };
-    static const NamedScreen kScreens[] = {
-        {"closest", scr::ScreenId::Closest}, {"radar", scr::ScreenId::Radar}, {"board", scr::ScreenId::Board},
-        {"sky", scr::ScreenId::Sky},         {"map", scr::ScreenId::Map},     {"stats", scr::ScreenId::Stats},
-        {"alert", scr::ScreenId::Alert},
-    };
-    void (*fill)(scr::Scene&) = nullptr;
-    for (const auto& n : kScenes)
-        if (!std::strcmp(n.name, sceneName)) fill = n.fill;
-    const NamedScreen* screen = nullptr;
-    for (const auto& n : kScreens)
-        if (!std::strcmp(n.name, screenName)) screen = &n;
-    bool themeOk = !std::strcmp(themeName, "cinematic") || !std::strcmp(themeName, "editorial");
-    if (!fill || !screen || !themeOk) {
-        std::fprintf(stderr, "usage: --render <scene> <screen> <theme> <out.ppm>\n  scenes:");
-        for (const auto& n : kScenes) std::fprintf(stderr, " %s", n.name);
-        std::fprintf(stderr, "\n  screens:");
-        for (const auto& n : kScreens) std::fprintf(stderr, " %s", n.name);
-        std::fprintf(stderr, "\n  themes: cinematic editorial\n");
-        return 2;
-    }
-    if (screen->id == scr::ScreenId::Alert) fill = sceneBusyEmergency;
     setenv("TZ", "UTC0", 1);  // as the goldens: the scenes' clocks are UTC
     tzset();
-
     const char* sdEnv = std::getenv("CONTRAIL_SD");
     std::unique_ptr<hal::NativeStorage> sd;
     assets::LogoStore logos;
     basemap::MapPack mapPack;
-    auto screens = std::make_unique<scr::ScreenApp>(scr::themeByName(themeName));
     if (sdEnv && *sdEnv) {
         sd = std::make_unique<hal::NativeStorage>(sdEnv);
         logos.begin(sd.get());
         mapPack.begin(sd.get());
-        screens->setLogos(&logos);
-        screens->setMap(&mapPack);
     }
     CaptureDisplay display;
-    gfx::StripRenderer renderer(display, bufA, bufB, kStripH);
-    renderer.setLayers(screens->layers(), screens->layerCount());
-    const bool trails = screen->id == scr::ScreenId::Map;
-    for (int k = trails ? 7 : 0; k >= 0; --k) {
-        fill(screens->scene());
-        if (trails) backInTime(screens->scene(), 10.f * k);  // k = 0 too, as withHistory (float round trip)
-        screens->sceneUpdated();
+    if (!app::renderDemo(sceneName, screenName, themeName, display, bufA, bufB, kStripH, sd ? &logos : nullptr,
+                         sd ? &mapPack : nullptr)) {
+        std::fprintf(stderr, "usage: --render <scene> <screen> <theme> <out.ppm>\n");
+        app::printDemoNames(stderr);
+        return 2;
     }
-    screens->host().showNow(screen->id);
-    const int frames = screen->id == scr::ScreenId::Sky ? 100 : 75;
-    for (int i = 0; i < frames; ++i) renderer.frame(1 / 30.f);
-    bool ok = writePpm(out, display.px);
-    screens.reset();  // before the stores it points at
-    return ok ? 0 : 1;
+    return writePpm(out, display.px) ? 0 : 1;
 }
 
 int main(int argc, char** argv) {
