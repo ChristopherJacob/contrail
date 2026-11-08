@@ -37,11 +37,11 @@ board's web settings page, Wi-Fi setup, OTA.
 |---|---|---|
 | WASM entry point | `firmware/src/main_wasm.cpp` | the app loop for the worker; `--render`-style demo frames for the test |
 | WASM HAL | `firmware/lib/hal_wasm/` | display, touch, clock, HTTP and storage over the worker's JS |
-| Build env | `firmware/platformio.ini` `[env:wasm]`, `firmware/scripts/` | emscripten build to `contrail.js` + `contrail.wasm` |
+| Build | `tools/build_wasm.sh` | emscripten build to `contrail.js` + `contrail.wasm` (PlatformIO's native platform uses the host compiler, so not an env) |
 | Recorder | `tools/record_sky.py` | 10 min of adsb.lol replies and their adsbdb routes per place |
-| Places | `tools/sim_places.json` | name, ICAO, lat, lon, time zone (POSIX TZ string) |
+| Places | `tools/sim_places.json` | name, ICAO, lat, lon, time zone (IANA name) |
 | Page | `site/sim.html`, `site/sim.js`, `site/sim-worker.js` | canvas, controls, the worker |
-| Site data | `tools/sim_site.sh` | recordings, per-place `map.pak`, the WASM build into `site/sim/` |
+| Site data | `tools/sim_site.py` | recordings, per-place `map.pak`, the WASM build into `site/sim/` |
 | Parity test | `tools/sim_node_test.mjs`, CI | WASM demo frames under Node equal the desktop `--render` frames |
 | Pages workflow | `.github/workflows/pages.yml` | hourly schedule, emscripten, the recorder, `sim_site.sh` |
 
@@ -74,7 +74,9 @@ simulator runs `networkTick` on its own thread. In the browser:
 | `IKeyValueStore` | in memory; the worker sets home, the time zone and the theme before `begin` |
 | LED, backlight, light sensor | the LED colour is posted to the page (a dot beside the screen); the others are no-ops |
 
-The worker sets `TZ` to the place's POSIX string and calls `tzset` (emscripten's libc reads it).
+Emscripten's `localtime_r` takes the zone from JS `Date` (the visitor's) and ignores `TZ`, so the build replaces its
+`_localtime_js` with one using `Intl.DateTimeFormat` in the place's IANA zone (`Module.timeZone`, set by the worker;
+"UTC" for the parity test). Checked 2026-11-07: with it, all 14 site screenshots are byte-identical to the desktop's.
 
 ## 4. Recordings
 
@@ -83,24 +85,26 @@ The worker sets `TZ` to the place's POSIX string and calls `tzset` (emscripten's
 - For each place, every 10 s for 10 minutes (the board's default community poll), GETs adsb.lol's
   `/v2/point/<lat>/<lon>/<radius>` with the radius the firmware asks for (its default range setting), and stores
   the body unchanged: `<place>/000.json` … `059.json`.
-- Collects the callsigns seen and looks each up once on adsbdb, storing `<place>/routes.json` (callsign → the
+- Collects the callsigns of the 12 nearest flights in each reply (the board looks up its 8 nearest) and, after the
+  replies, looks each up once on adsbdb, storing `<place>/routes.json` (callsign → the
   reply body, or null for a 404). Requests are spaced (at least 1 s apart per host) and carry the project's
   User-Agent.
 - Writes `<place>/index.json`: the place, the start epoch (UTC), the interval, the reply count.
 - Places are recorded in parallel (one thread each), so a run takes about 10 minutes. A place whose recording
   fails keeps no files; the page lists only places with an `index.json`.
-- Playback: the HAL serves reply k at the k-th poll and loops after the last; at the loop the planes jump back to
-  where the recording began. The page says when the recording was made.
+- Playback: the HAL serves reply k at the k-th poll. After the last, the place is loaded again from its start (same
+  screen, same settings), so trails and stats start afresh instead of planes jumping back. The page says when the
+  recording was made.
 
 ## 5. Site data and workflow
 
-`tools/sim_site.sh <site>` puts into `site/sim/`: `contrail.js`, `contrail.wasm`, `places.json` (the recorded
+`tools/sim_site.py <site> <recordings>` puts into `site/sim/`: `contrail.js`, `contrail.wasm`, `places.json` (the recorded
 places), each place's recording, and `map-<place>.pak` built with `build_map.py --regions site/mapdata --lat …
 --lon …` (6c's region data, already on the site). `logos.pak` is the one in `site/firmware/`; without a release the
 simulator runs with drawn tail fins, as a board without a card.
 
 The Pages workflow gains `schedule: cron "17 * * * *"` (hourly), installs emscripten (cached), builds `-e wasm`,
-records, and runs `sim_site.sh`. A failed recording run deploys the site without the simulator's places rather than
+records, and runs `sim_site.py`. A failed recording run deploys the site without the simulator's places rather than
 failing the deploy; a failed WASM build fails it. Load: about 300 requests an hour to adsb.lol across the five
 places, and adsbdb lookups for the callsigns seen.
 
