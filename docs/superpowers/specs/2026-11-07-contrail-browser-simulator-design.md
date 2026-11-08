@@ -87,10 +87,13 @@ Emscripten's `localtime_r` takes the zone from JS `Date` (the visitor's) and ign
   the body unchanged: `<place>/000.json` … `029.json`.
   20 s, not the board's default 10 s, because adsb.lol allows about 20 requests a minute per IP (measured
   2026-11-08: a burst of 10, then 429) and five places at 10 s is 30 a minute; at 20 s it is 15. A 429 waits out
-  its Retry-After (at most 60 s) and asks once more; a reply that still fails fails the place.
+  its Retry-After (at most 60 s), for every place at once, and asks once more. A reply that lands more than an
+  interval late is the new start of the schedule, so a long Retry-After leaves one longer gap in that recording;
+  one more than 80 s late, or still failing, fails the place.
 - Collects the callsigns of the 12 nearest flights in each reply (the board looks up its 8 nearest) and, after the
   replies, looks each up once on adsbdb, storing `<place>/routes.json` (callsign → the
-  reply body, or null for a 404). Requests are spaced (at least 1 s apart to adsb.lol, 0.5 s to adsbdb, across the threads) and carry the project's
+  reply body, or null for a 404). Requests are spaced (at least 1 s apart to adsb.lol, 0.5 s to adsbdb, across the
+  threads) and carry the project's
   User-Agent.
 - Writes `<place>/index.json`: the place, the start epoch (UTC), the interval (20), the reply count (30).
 - Places are recorded in parallel (one thread each), so a run takes about 10 minutes. A place whose recording

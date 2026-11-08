@@ -109,8 +109,10 @@ class RecordError(Exception):
 def record_place(place, out_dir, replies, get, feed, routes_spacer, clock=time.monotonic, sleep=time.sleep,
                  wall=time.time):
     """Records one place into out_dir/<id> (built in <id>.tmp, then moved). Raises RecordError. The cadence runs on
-    `clock`, reply k due at t0 + k * INTERVAL_S, so a slow reply doesn't push the rest; one that lands more than an
-    interval late fails the place, as a replay would otherwise jump."""
+    `clock`: reply k is requested when due, INTERVAL_S after the one before, so a slow request doesn't push the rest.
+    A reply that lands more than an interval late (a rate limit's wait) is rebased on: the later replies are again
+    INTERVAL_S apart from it, and that one gap in the recording is longer. Lateness beyond MAX_RETRY_AFTER_S +
+    INTERVAL_S fails the place."""
     final = os.path.join(out_dir, place["id"])
     tmp = final + ".tmp"
     shutil.rmtree(tmp, ignore_errors=True)
@@ -118,19 +120,23 @@ def record_place(place, out_dir, replies, get, feed, routes_spacer, clock=time.m
     try:
         url = FEED.format(lat=place["lat"], lon=place["lon"], radius=RADIUS_NM)
         wanted = []
-        start = t0 = 0
+        start, due = 0, 0.0
         for k in range(replies):
             if k:
-                sleep(max(0.0, t0 + k * INTERVAL_S - clock()))
+                due += INTERVAL_S
+                sleep(max(0.0, due - clock()))
             status, body = get(url, feed)
             if status == -1 or status >= 500:
                 status, body = get(url, feed)  # one retry; a 429 was already retried by http_get
             if status != 200:
                 raise RecordError(f"{place['id']}: reply {k}: HTTP {status}")
+            now = clock()
             if k == 0:
-                start, t0 = int(wall()), clock()
-            elif clock() > t0 + (k + 1) * INTERVAL_S:
-                raise RecordError(f"{place['id']}: reply {k}: more than {INTERVAL_S} s late")
+                start, due = int(wall()), now
+            elif now - due > MAX_RETRY_AFTER_S + INTERVAL_S:
+                raise RecordError(f"{place['id']}: reply {k}: {now - due:.0f} s late")
+            elif now - due > INTERVAL_S:
+                due = now  # a long gap in the recording, then the cadence again, not a rush to catch up
             try:
                 for cs in nearest_callsigns(body, place["lat"], place["lon"]):
                     if cs not in wanted:
@@ -229,7 +235,8 @@ def selftest():
         # start is taken when reply 0 is in, not before the request
         assert index["start"] == 1003 and index["replies"] == 3 and index["interval"] == 20 and index["zone"]
         assert calls[0][0] == "https://api.adsb.lol/v2/point/39.4000/-77.4000/25", calls[0]
-        assert sum("adsb.lol" in c for c, _ in calls) == 3  # each callsign looked up once, after the replies
+        assert sum("adsb.lol" in c for c, _ in calls) == 3
+        # each callsign is looked up once, after the replies; a failed lookup (DAL1) is left out of routes
         assert [c for c, _ in calls[3:]] == ["https://api.adsbdb.com/v0/callsign/N1",
                                              "https://api.adsbdb.com/v0/callsign/UAL53",
                                              "https://api.adsbdb.com/v0/callsign/DAL1"], calls[3:]
@@ -265,10 +272,22 @@ def selftest():
         assert n[0] == 1, n[0]
         assert sorted(os.listdir(d)) == [], os.listdir(d)  # the failed place's earlier folder is gone too
 
-        # a reply more than an interval late (a long 429 wait) fails the place
+        # a 429 with Retry-After 30 (as the stub: the hold and the retry make reply 1 take 33 s) stretches that gap
+        # once, then the cadence is 20 s again from that reply
+        times = []
+
+        def limited_once(url, spacer):
+            times.append(t[0])
+            t[0] += 33 if len(times) == 2 else 3
+            return 200, reply
+        record_place(place, d, 4, limited_once, sp, sp, clock=clock, sleep=sleep, wall=clock)
+        gaps = [b - a for a, b in zip(times, times[1:4])]
+        assert gaps == [23.0, 53.0, 20.0], gaps
+
+        # lateness beyond MAX_RETRY_AFTER_S + INTERVAL_S fails the place
         def late(url, spacer):
             late.n += 1
-            t[0] += 45 if late.n == 2 else 0
+            t[0] += 85 if late.n == 2 else 0
             return 200, reply
         late.n = 0
         try:
