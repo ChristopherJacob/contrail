@@ -16,6 +16,7 @@ tools/.cache/
 site/shots/
 site/firmware/
 site/mapdata/
+site/sim/
 site/py/
 site/mapdata.tmp/
 /contrail-sd-card.zip
