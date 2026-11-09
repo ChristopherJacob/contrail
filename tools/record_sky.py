@@ -4,12 +4,14 @@
     tools/record_sky.py <places.json> <out-dir> [--replies N]   record every place, in parallel
     tools/record_sky.py --selftest
 
-For each place, <out-dir>/<id>/ holds 000.json, 001.json ...: adsb.lol's replies, one every 20 s for its default
+For each place, <out-dir>/<id>/ holds 000.json, 001.json ...: adsb.lol's replies, one every 30 s for its default
 25 nm radius, unchanged. routes.json maps each callsign the board would look
 up to adsbdb's reply (null when adsbdb doesn't know it), and index.json says what was recorded and when. A place
 whose recording fails leaves no folder; the exit status is 1 only when no place was recorded.
 """
 import argparse
+import contextlib
+import io
 import json
 import math
 import os
@@ -22,10 +24,11 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-REPLIES = 30      # 10 minutes
-# adsb.lol allows about 20 requests a minute per IP (measured 2026-11-08: a burst of 10, then 429s), and five places
-# polled every 10 s is 30. At 20 s it is 15; the simulator polls at index.json's interval (kPollComm is a setting).
-INTERVAL_S = 20
+REPLIES = 20      # 10 minutes
+# adsb.lol allows about 20 requests a minute per IP from here (measured 2026-11-08: a burst of 10, then 429s), and
+# GitHub's runners get less: five places at 20 s (15 a minute) came back with 40-60 s gaps and overran the workflow's
+# 15 minutes. At 30 s it is 10 a minute; the simulator polls at index.json's interval (kPollComm is a setting).
+INTERVAL_S = 30
 MAX_RETRY_AFTER_S = 60
 RADIUS_NM = 25    # CoreSettings.cpp: kRadius's default
 NEAREST = 12      # the board looks routes up for its 8 nearest (CoreApp.h kEnrichCount); a margin for movement
@@ -65,6 +68,9 @@ def http_get(url, spacer, opener=urllib.request.urlopen):
             with opener(req, timeout=20) as r:
                 return r.status, r.read()
         except urllib.error.HTTPError as e:
+            if e.code == 429:
+                host = urllib.parse.urlsplit(url).hostname
+                print(f"429 from {host}: Retry-After {e.headers.get('Retry-After')}", file=sys.stderr, flush=True)
             if e.code != 429 or attempt:
                 return e.code, b""
             try:
@@ -172,7 +178,9 @@ def record_place(place, out_dir, replies, get, feed, routes_spacer, clock=time.m
 def record_all(places, out_dir, replies, get=http_get, sleep=time.sleep):
     """Every place at once, each in its own thread; returns the ids recorded."""
     os.makedirs(out_dir, exist_ok=True)
-    feed, routes = Spacer(1.0, sleep=sleep), Spacer(0.5, sleep=sleep)
+    # One feed request every INTERVAL_S / places, not a burst per interval: measured at seven replies, a burst left
+    # gaps of 11-49 s and this left most near 30 s (adsb.lol still refuses a few, which a recording has to survive).
+    feed, routes = Spacer(INTERVAL_S / max(len(places), 1), sleep=sleep), Spacer(0.5, sleep=sleep)
     done, threads = [], []
 
     def run(place):
@@ -233,15 +241,15 @@ def selftest():
         routes = json.load(open(os.path.join(d, "kfdk", "routes.json")))
         assert routes == {"N1": None, "UAL53": {"response": {"flightroute": {"callsign": "UAL53"}}}}, routes
         # start is taken when reply 0 is in, not before the request
-        assert index["start"] == 1003 and index["replies"] == 3 and index["interval"] == 20 and index["zone"]
+        assert index["start"] == 1003 and index["replies"] == 3 and index["interval"] == 30 and index["zone"]
         assert calls[0][0] == "https://api.adsb.lol/v2/point/39.4000/-77.4000/25", calls[0]
         assert sum("adsb.lol" in c for c, _ in calls) == 3
         # each callsign is looked up once, after the replies; a failed lookup (DAL1) is left out of routes
         assert [c for c, _ in calls[3:]] == ["https://api.adsbdb.com/v0/callsign/N1",
                                              "https://api.adsbdb.com/v0/callsign/UAL53",
                                              "https://api.adsbdb.com/v0/callsign/DAL1"], calls[3:]
-        # reply k is requested at t0 + 20 k, t0 being when reply 0 came in, whatever each request took
-        assert [at for _, at in calls[:3]] == [1000.0, 1023.0, 1043.0], calls[:3]
+        # reply k is requested at t0 + 30 k, t0 being when reply 0 came in, whatever each request took
+        assert [at for _, at in calls[:3]] == [1000.0, 1033.0, 1063.0], calls[:3]
 
         # a failing feed (5xx, retried once) raises and leaves no folder, not even an earlier run's
         os.makedirs(os.path.join(d, "eham"))
@@ -273,7 +281,7 @@ def selftest():
         assert sorted(os.listdir(d)) == [], os.listdir(d)  # the failed place's earlier folder is gone too
 
         # a 429 with Retry-After 30 (as the stub: the hold and the retry make reply 1 take 33 s) stretches that gap
-        # once, then the cadence is 20 s again from that reply
+        # once, then the cadence is 30 s again from that reply
         times = []
 
         def limited_once(url, spacer):
@@ -282,12 +290,12 @@ def selftest():
             return 200, reply
         record_place(place, d, 4, limited_once, sp, sp, clock=clock, sleep=sleep, wall=clock)
         gaps = [b - a for a, b in zip(times, times[1:4])]
-        assert gaps == [23.0, 53.0, 20.0], gaps
+        assert gaps == [33.0, 63.0, 30.0], gaps
 
         # lateness beyond MAX_RETRY_AFTER_S + INTERVAL_S fails the place
         def late(url, spacer):
             late.n += 1
-            t[0] += 85 if late.n == 2 else 0
+            t[0] += 95 if late.n == 2 else 0
             return 200, reply
         late.n = 0
         try:
@@ -305,6 +313,16 @@ def selftest():
                 pass
 
         assert record_all([place, dict(place, id="egll")], d, 2, get=get, sleep=lambda s: None) == ["kfdk", "egll"]
+
+        # the feed's requests are spread over the interval, whatever the number of places
+        feed_gaps = set()
+
+        def spaced(url, spacer):
+            if "adsb.lol" in url:
+                feed_gaps.add(spacer.gap)
+            return (404, b"") if "adsbdb" in url else (200, reply)
+        record_all([place, dict(place, id="egll")], d, 1, get=spaced, sleep=lambda s: None)
+        assert feed_gaps == {INTERVAL_S / 2}, feed_gaps
 
     # a flight without a fix reports lastPosition (ReadsbParser.cpp)
     lp = json.dumps({"ac": [{"flight": "LP1", "lastPosition": {"lat": 39.4, "lon": -77.4}},
@@ -356,9 +374,15 @@ def selftest():
         slept.clear()
         spc = Spacer(1.0, clock=lambda: ft[0], sleep=fsleep)
         return http_get("https://x.test/", spc, opener_for(seq)), sum(slept)
-    assert held(["7", "ok"]) == ((200, b"{}"), 7.0)
-    assert held(["500", "9"]) == ((429, b""), 60.0)
-    assert held(["soon", "ok"]) == ((200, b"{}"), 10.0)
+    log = io.StringIO()
+    with contextlib.redirect_stderr(log):
+        assert held(["7", "ok"]) == ((200, b"{}"), 7.0)
+    assert log.getvalue() == "429 from x.test: Retry-After 7\n", log.getvalue()  # each refusal shows in the run's log
+    log = io.StringIO()
+    with contextlib.redirect_stderr(log):
+        assert held(["500", "9"]) == ((429, b""), 60.0)
+        assert held(["soon", "ok"]) == ((200, b"{}"), 10.0)
+    assert log.getvalue().count("429 from x.test") == 3, log.getvalue()
     print("record_sky selftest: ok")
 
 

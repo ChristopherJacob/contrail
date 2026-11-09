@@ -118,7 +118,7 @@ Settings live in `~/.contrail/settings.json` (same keys as the device), for exam
 ### Simulator in the browser
 
 The [Simulator page](https://christopherjacob.github.io/contrail/sim.html) runs the same firmware, compiled to
-WebAssembly, on flights recorded over five airports; the Pages workflow records them again every hour. To build it
+WebAssembly, on flights recorded over a handful of airports; the Pages workflow records them again every hour. To build it
 locally (emscripten 7.0.0 on `PATH`, and the site's map data from `tools/sd_site.sh site`):
 
 ```bash

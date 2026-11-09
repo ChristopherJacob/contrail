@@ -88,7 +88,7 @@ jobs:
           fi
           rm -f api.err
           ls -l site site/shots site/firmware site/py && du -sh site/mapdata
-      # About 10 minutes: 30 replies 20 s apart for each place, at once, then their routes. A failed place is left
+      # About 10 minutes: 20 replies 30 s apart for each place, at once, then their routes. A failed place is left
       # out; with none recorded, the page says so and the rest of the site still deploys. The timeout is for a hung
       # adsbdb, which would otherwise run the job past its 30 minutes and block that hour's deploy; a killed run
       # leaves only <id>.tmp folders, which sim_site.py ignores.

@@ -82,24 +82,26 @@ Emscripten's `localtime_r` takes the zone from JS `Date` (the visitor's) and ign
 
 `tools/record_sky.py <places.json> <out-dir>`:
 
-- For each place, every 20 s for 10 minutes, GETs adsb.lol's
+- For each place, every 30 s for 10 minutes, GETs adsb.lol's
   `/v2/point/<lat>/<lon>/<radius>` with the radius the firmware asks for (its default range setting), and stores
-  the body unchanged: `<place>/000.json` … `029.json`.
-  20 s, not the board's default 10 s, because adsb.lol allows about 20 requests a minute per IP (measured
-  2026-11-08: a burst of 10, then 429) and five places at 10 s is 30 a minute; at 20 s it is 15. A 429 waits out
+  the body unchanged: `<place>/000.json` … `019.json`.
+  30 s, not the board's default 10 s, because adsb.lol allows about 20 requests a minute per IP (measured
+  2026-11-08: a burst of 10, then 429) and GitHub's runners get less: five places at 20 s (15 a minute) came back
+  with 40-60 s gaps and overran the 15-minute limit, publishing 2 of 5. At 30 s it is 10 a minute. Each 429 is
+  logged with its Retry-After, so a run's log shows how often the feed refused. A 429 waits out
   its Retry-After (at most 60 s), for every place at once, and asks once more. A reply that lands more than an
   interval late is the new start of the schedule, so a long Retry-After leaves one longer gap in that recording;
-  one more than 80 s late, or still failing, fails the place.
+  one more than 90 s late, or still failing, fails the place.
 - Collects the callsigns of the 12 nearest flights in each reply (the board looks up its 8 nearest) and, after the
   replies, looks each up once on adsbdb, storing `<place>/routes.json` (callsign → the
-  reply body, or null for a 404). Requests are spaced (at least 1 s apart to adsb.lol, 0.5 s to adsbdb, across the
+  reply body, or null for a 404). Requests are spaced (one every interval ÷ places to adsb.lol, 6 s for five places, so no burst; 0.5 s to adsbdb, across the
   threads) and carry the project's
   User-Agent.
-- Writes `<place>/index.json`: the place, the start epoch (UTC), the interval (20), the reply count (30).
+- Writes `<place>/index.json`: the place, the start epoch (UTC), the interval (30), the reply count (20).
 - Places are recorded in parallel (one thread each), so a run takes about 10 minutes. A place whose recording
   fails keeps no files; the page lists only places with an `index.json`.
 - Playback: the simulator sets the community poll interval (`poll_comm_s`, a setting of 2-60 s) to the recording's
-  interval, as a board set to 20 s would run, so the replay is in real time. The HAL serves replies by elapsed time since the place started: reply k = elapsed / interval, and a poll the firmware makes early repeats the current reply. After the last (the first poll at replies × interval), the place is loaded again from its start (same
+  interval, as a board set to 30 s would run, so the replay is in real time. The HAL serves replies by elapsed time since the place started: reply k = elapsed / interval, and a poll the firmware makes early repeats the current reply. After the last (the first poll at replies × interval), the place is loaded again from its start (same
   screen, same settings), so trails and stats start afresh instead of planes jumping back. The page says when the
   recording was made.
 
@@ -112,7 +114,7 @@ simulator runs with drawn tail fins, as a board without a card.
 
 The Pages workflow gains `schedule: cron "17 * * * *"` (hourly), installs emscripten (cached), records (under `timeout 15m`, so a
 hung lookup cannot hold up the deploy), and runs `sim_site.py`, which builds with `tools/build_wasm.sh`. A failed recording run deploys the site without the simulator's places rather than
-failing the deploy; a failed WASM build fails it. Load: about 150 requests an hour to adsb.lol across the five
+failing the deploy; a failed WASM build fails it. Load: about 100 requests an hour to adsb.lol across the five
 places, and adsbdb lookups for the callsigns seen.
 
 ## 6. The page (`sim.html`)
@@ -176,7 +178,7 @@ and the controls stack below it. Nothing red in the console. Every request is fo
 - **Clocks:** `millis`/`micros` go through 64 bits before 32, so they wrap as the device's do.
 - **Storage:** `RangeStorage` is writable, with an in-memory overlay, because `MapPack` refuses storage that isn't
   and the map's chart cache writes the chart; the saved chart lasts one loop.
-- **Pace:** adsb.lol allows about 20 requests a minute per IP, so recordings are 30 replies 20 s apart and the
+- **Pace:** adsb.lol allows about 20 requests a minute per IP, and GitHub's runners get less, so recordings are 20 replies 30 s apart and the
   simulator sets `poll_comm_s` to the recording's interval (§4 has the 429 and late-reply rules).
 - **Loop seam:** the place is loaded again at the loop, so trails and stats start afresh rather than planes jumping.
   Only the keys `Settings` owns are kept (stats start afresh); the screen stays, and a touch hold in progress
