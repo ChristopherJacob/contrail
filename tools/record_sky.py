@@ -178,7 +178,9 @@ def record_place(place, out_dir, replies, get, feed, routes_spacer, clock=time.m
 def record_all(places, out_dir, replies, get=http_get, sleep=time.sleep):
     """Every place at once, each in its own thread; returns the ids recorded."""
     os.makedirs(out_dir, exist_ok=True)
-    feed, routes = Spacer(1.0, sleep=sleep), Spacer(0.5, sleep=sleep)
+    # One feed request every INTERVAL_S / places, not a burst per interval: measured at seven replies, a burst left
+    # gaps of 11-49 s and this left most near 30 s (adsb.lol still refuses a few, which a recording has to survive).
+    feed, routes = Spacer(INTERVAL_S / max(len(places), 1), sleep=sleep), Spacer(0.5, sleep=sleep)
     done, threads = [], []
 
     def run(place):
@@ -311,6 +313,16 @@ def selftest():
                 pass
 
         assert record_all([place, dict(place, id="egll")], d, 2, get=get, sleep=lambda s: None) == ["kfdk", "egll"]
+
+        # the feed's requests are spread over the interval, whatever the number of places
+        feed_gaps = set()
+
+        def spaced(url, spacer):
+            if "adsb.lol" in url:
+                feed_gaps.add(spacer.gap)
+            return (404, b"") if "adsbdb" in url else (200, reply)
+        record_all([place, dict(place, id="egll")], d, 1, get=spaced, sleep=lambda s: None)
+        assert feed_gaps == {INTERVAL_S / 2}, feed_gaps
 
     # a flight without a fix reports lastPosition (ReadsbParser.cpp)
     lp = json.dumps({"ac": [{"flight": "LP1", "lastPosition": {"lat": 39.4, "lon": -77.4}},
