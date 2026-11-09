@@ -30,7 +30,7 @@ screenshots have neither in CI), running WebAssembly on the showcase page.
 | Piece | Where | What |
 |---|---|---|
 | Clips | `firmware/lib/core/app/DemoClip.{h,cpp}` | a screen's frames, or the tour's, handed to a callback |
-| Demo helpers | `firmware/lib/core/app/DemoRender.{h,cpp}` | `sceneBusyEmergency` and `backInTime` become public for `DemoClip`; `renderDemo` itself does not change |
+| Demo helpers | `firmware/lib/core/app/DemoRender.{h,cpp}` | `addDemoEmergency` (split out of `sceneBusyEmergency`) and `backInTime` become public for `DemoClip`; `renderDemo` itself does not change |
 | Simulator modes | `firmware/src/main_sim.cpp` | `--clip <screen> <theme>` and `--tour`: raw RGB24 frames on stdout |
 | Encoder | `tools/previews.sh` | sim into ffmpeg, size limits |
 | Page | `site/index.html`, `site/previews.js`, `site/style.css` | stills upgraded to videos, the pause button, the sped-up note |
@@ -63,21 +63,23 @@ the sort the demo list keeps its original order and the Board's rows never glide
 and the tour step every 3 frames (1 s of flight time, 0.6 px of plane movement). The Board steps every 15 frames (5 s),
 so its numbers can be read. Map starts with the 70 s of trails that `renderDemo` gives it.
 
-**Crossfade:** 15 more frames are drawn than are kept. Kept frame `i` (`i` < 15) is blended from drawn frame `i`
-(weight `i/15`) and drawn frame `N + i` (weight `1 - i/15`), channel by channel in RGB565, so the end of the clip runs
-into its start. `DemoClip` holds those frames in memory (2.3 MB, simulator only).
+**Crossfade:** 15 more frames are drawn than are kept. The first 15 drawn frames are held back and output starts at
+drawn frame 15. The clip's last 15 frames blend the clip's continuation into those held frames: output `N - 15 + j` is
+drawn frame `N + j` weighted `(14 - j + 1)/16` and held frame `j` weighted `(j + 1)/16`, channel by channel in RGB565.
+So the end runs into the start, and the sink still gets frames in order. `DemoClip` holds only the 15 frames in memory
+(2.3 MB, simulator only).
 
 ## 3. The tour
 
 `app::renderTour(theme, sink, bufA, bufB, stripH)`, Cinematic Sky in the page's use. Closest → Radar → Map → Board →
 Sky → Stats → Alert, then back to Closest, each held 3.5 s (105 frames) with the firmware's own fade between them
-(`ScreenHost::show`: 0.2 s out, 0.2 s in; no `ScreenApp::tick`, so no director). 819 frames, about 27 s, flights at 10×
+(`ScreenHost::show`: 0.2 s out, 0.2 s in; no `ScreenApp::tick`, so no director). 820 frames (7 × 117, plus the closing black frame), about 27 s, flights at 10×
 throughout on the `sceneStats` data (busy plus a logbook; the sky stays dusk).
 
 The file starts and ends at full black: capture starts at the black point of a transition into Closest, and stops at
 the black point of the last transition back to it. So the loop point falls inside a fade and needs no crossfade. The
-emergency is put into the scene when the fade to Alert starts, with its `startMs` set then so its rings and bar start
-afresh, and cleared when the fade to Closest starts.
+emergency is added to the scene from the moment the fade to Alert starts; no screen before Alert shows it, and capture
+stops at the fade's black point, so it is never cleared.
 
 ## 4. Encoding
 
@@ -141,7 +143,7 @@ run; they take well under a minute.
   - the loop closes: the pixels changed between the last and first frame are no more than twice the largest count
     between neighbouring frames in the clip.
 - The Board test also asserts the top row changes during the clip (the sort works).
-- The tour: 819 frames; first and last frames all black; the frame at the middle of each dwell differs from its
+- The tour: 820 frames; first and last frames all black; the frame at the middle of each dwell differs from its
   neighbour dwells.
 - Goldens and `tools/sim_node_test.mjs` unchanged: `renderDemo` is not edited beyond exposing two helpers.
 - `pio test -e test` and `pio run -e sim`; `tools/previews.sh` locally; the showcase page in the browser pane
