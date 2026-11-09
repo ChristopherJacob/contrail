@@ -35,6 +35,12 @@ const NamedScreen kScreens[] = {
 // (test/test_alert_screen), so no alert engine or clock is involved.
 void sceneBusyEmergency(scr::Scene& s) {
     scr::sceneBusy(s);
+    addDemoEmergency(s);
+}
+
+}  // namespace
+
+void addDemoEmergency(scr::Scene& s) {
     scr::SceneAlert& a = s.alert;
     a = scr::SceneAlert{};
     a.active = true, a.kind = scr::AlertKind::Emergency, a.live = true;
@@ -43,7 +49,7 @@ void sceneBusyEmergency(scr::Scene& s) {
     std::strcpy(a.flight.squawk, "7700"), a.flight.emergency = true;
 }
 
-// Every flight stepped `seconds` back along its track, as test_map_screen's backInTime.
+// As test_map_screen's backInTime.
 void backInTime(scr::Scene& s, float seconds) {
     for (int i = 0; i < s.count; ++i) {
         scr::SceneFlight& f = s.flights[i];
@@ -54,8 +60,6 @@ void backInTime(scr::Scene& s, float seconds) {
     }
     s.epoch -= int64_t(seconds);
 }
-
-}  // namespace
 
 bool renderDemo(const char* scene, const char* screen, const char* theme, hal::IDisplay& display, uint16_t* bufA,
                 uint16_t* bufB, int stripH, assets::LogoStore* logos, basemap::MapPack* map) {
