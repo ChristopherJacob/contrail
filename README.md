@@ -109,7 +109,7 @@ pio run -e sim && .pio/build/sim/program
 ```
 
 `tools/screenshots.sh <sim-binary> <out-dir>` renders every screen in both themes as PNGs (the site's
-screenshots).
+screenshots). `tools/previews.sh <sim-binary> <out-dir>` encodes the showcase page's animated clips (needs ffmpeg).
 
 Settings live in `~/.contrail/settings.json` (same keys as the device), for example
 `{"lat": "51.47", "lon": "-0.45", "loc_set": "true"}`. The simulator's "SD card" is a folder,
@@ -213,6 +213,7 @@ site/                    the GitHub Pages site (showcase, simulator, installer, 
                          images, logos.pak, map data and the simulator's recordings added by Actions
 .github/workflows        CI, release and Pages workflows
 tools/screenshots.sh     simulator screenshots of every screen and theme
+tools/previews.sh        animated previews of the screens for the showcase page
 tools/release_assets.sh  release files from the cyd2usb and cyd_microusb builds
 ```
 

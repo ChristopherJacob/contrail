@@ -1,7 +1,7 @@
 # Contrail Sub-project 6d — Animated Previews
 
 Date: 2026-11-09
-Status: Design approved; not yet built.
+Status: Built on `claude/elastic-napier-7775d5`; checked in the browser pane.
 Parent: `2026-10-30-contrail-requirements.md` ("Showcase page with animated screen previews"). Builds on 6a (the
 showcase page, `--render`, the Pages workflow) and sits beside 6b (the simulator page, which stays the way to *try*
 Contrail; 6d only shows it moving).
@@ -148,3 +148,17 @@ run; they take well under a minute.
 - Goldens and `tools/sim_node_test.mjs` unchanged: `renderDemo` is not edited beyond exposing two helpers.
 - `pio test -e test` and `pio run -e sim`; `tools/previews.sh` locally; the showcase page in the browser pane
   (videos appear, pause, off-screen pause, reduced motion, no JS) and at phone width.
+
+## 9. As built
+
+- **Sizes** (`tools/previews.sh`, 2026-11-09, macOS ffmpeg): 2,343 KB in all. Cinematic: Closest 38, Radar 155, Sky 35,
+  Alert 82, Map 268, Board 216 KB. Editorial: 23, 117, 15, 21, 270, 235 KB. Tour 862 KB. Encoding all 13 takes 7 s.
+- **The fade's colour:** `ScreenHost` dips through the theme's veil colour (near-black, not 0), so the tour's ends are
+  that solid colour; the test checks both ends are one colour and the same.
+- **Browser checks** were made in the app's browser pane, whose page is hidden, so the observer only ran after a
+  repaint. Checked: videos appear near the viewport and show only once playing, both buttons pause and resume all
+  in-view clips, off-screen clips pause, no horizontal scroll at phone width, the video lies exactly over its still.
+  Reduced motion was checked by re-running the script with `matchMedia` stubbed (no videos added, buttons stay hidden),
+  not with a real system setting. The clips have not yet been seen on real Pages hosting or on iOS.
+- The WebAssembly build compiles `DemoClip.cpp` too (`find lib/core`). Built locally: `contrail.wasm` is 845 KB, and
+  `tools/sim_node_test.mjs` finds all 14 frames the same as the desktop's.
