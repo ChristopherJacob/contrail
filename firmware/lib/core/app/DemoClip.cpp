@@ -70,6 +70,11 @@ void startScene(scr::ScreenApp& app, void (*fill)(scr::Scene&), bool trails) {
     }
 }
 
+void sceneStatsAlert(scr::Scene& s) {
+    scr::sceneStats(s);
+    addDemoEmergency(s);
+}
+
 uint16_t blend565(uint16_t a, uint16_t b, int t, int n) {  // t/n of b
     auto mix = [&](int ca, int cb) { return (ca * (n - t) + cb * t + n / 2) / n; };
     return uint16_t(mix(a >> 11, b >> 11) << 11 | mix((a >> 5) & 63, (b >> 5) & 63) << 5 | mix(a & 31, b & 31));
@@ -107,6 +112,44 @@ int renderClip(const char* screen, const char* theme, const ClipSink& sink, uint
         }
     }
     return c->frames;
+}
+
+int renderTour(const char* theme, const ClipSink& sink, uint16_t* bufA, uint16_t* bufB, int stripH) {
+    if (!knownTheme(theme)) return -1;
+    static const scr::ScreenId kOrder[] = {scr::ScreenId::Closest, scr::ScreenId::Radar, scr::ScreenId::Map,
+                                           scr::ScreenId::Board,   scr::ScreenId::Sky,   scr::ScreenId::Stats,
+                                           scr::ScreenId::Alert};
+    constexpr int kSteps = 3, kFadeFrames = 6, kDwell = 105;  // ScreenHost::kFadeS is 6 frames
+
+    auto app = std::make_unique<scr::ScreenApp>(scr::themeByName(theme));
+    Capture display;
+    gfx::StripRenderer renderer(display, bufA, bufB, stripH);
+    renderer.setLayers(app->layers(), app->layerCount());
+    void (*fill)(scr::Scene&) = scr::sceneStats;
+    startScene(*app, fill, true);
+    scr::ScreenHost& host = app->host();
+    host.showNow(scr::ScreenId::Stats);
+    for (int i = 0; i < kWarmup; ++i) renderer.frame(kDt);
+
+    int frames = 0, step = 0, tick = 0;
+    auto draw = [&](bool keep) {
+        if (tick++ % kSteps == 0) stepScene(*app, fill, ++step * kSteps * kDt * kLapse);
+        renderer.frame(kDt);
+        if (keep) sink(display.px.data()), ++frames;
+    };
+    host.show(scr::ScreenId::Closest);
+    while (host.current() != scr::ScreenId::Closest) draw(false);
+    // The switch's frame is all veil: it opens the file (and, drawn again at the end, closes it).
+    sink(display.px.data()), ++frames;
+    const int n = int(sizeof kOrder / sizeof kOrder[0]);
+    for (int i = 0; i < n; ++i) {
+        for (int j = 0; j < kFadeFrames + kDwell; ++j) draw(true);
+        const scr::ScreenId next = kOrder[(i + 1) % n];
+        if (next == scr::ScreenId::Alert) fill = sceneStatsAlert;
+        host.show(next);
+        while (host.current() != next) draw(true);
+    }
+    return frames;
 }
 
 }  // namespace app

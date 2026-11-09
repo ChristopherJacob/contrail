@@ -14,5 +14,8 @@ using ClipSink = std::function<void(const uint16_t* px)>;
 // The frame count, or -1 (no frames) for an unknown name or Stats, which has no motion. Screens: closest radar sky alert
 // map board. bufA and bufB hold 240 x stripH pixels each.
 int renderClip(const char* screen, const char* theme, const ClipSink& sink, uint16_t* bufA, uint16_t* bufB, int stripH);
+// Every screen in turn with the firmware's own fades, flights at 10x. Starts and ends on the solid veil colour, so it loops
+// inside a fade. The frame count, or -1 for an unknown theme.
+int renderTour(const char* theme, const ClipSink& sink, uint16_t* bufA, uint16_t* bufB, int stripH);
 
 }  // namespace app

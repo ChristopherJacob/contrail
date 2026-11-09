@@ -35,7 +35,7 @@ screenshots have neither in CI), running WebAssembly on the showcase page.
 | Encoder | `tools/previews.sh` | sim into ffmpeg, size limits |
 | Page | `site/index.html`, `site/previews.js`, `site/style.css` | stills upgraded to videos, the pause button, the sped-up note |
 | Pages workflow | `.github/workflows/pages.yml` | ffmpeg installed, the Previews step |
-| Test | `firmware/test/test_demo_clip/` | frame counts, determinism, loop closure, the tour's black ends |
+| Test | `firmware/test/test_demo_clip/` | frame counts, determinism, loop closure, the tour's solid ends |
 
 ## 2. Clips
 
@@ -73,13 +73,13 @@ So the end runs into the start, and the sink still gets frames in order. `DemoCl
 
 `app::renderTour(theme, sink, bufA, bufB, stripH)`, Cinematic Sky in the page's use. Closest → Radar → Map → Board →
 Sky → Stats → Alert, then back to Closest, each held 3.5 s (105 frames) with the firmware's own fade between them
-(`ScreenHost::show`: 0.2 s out, 0.2 s in; no `ScreenApp::tick`, so no director). 820 frames (7 × 117, plus the closing black frame), about 27 s, flights at 10×
+(`ScreenHost::show`: 0.2 s out, 0.2 s in; no `ScreenApp::tick`, so no director). 820 frames (7 × 117, plus the closing veil frame), about 27 s, flights at 10×
 throughout on the `sceneStats` data (busy plus a logbook; the sky stays dusk).
 
-The file starts and ends at full black: capture starts at the black point of a transition into Closest, and stops at
-the black point of the last transition back to it. So the loop point falls inside a fade and needs no crossfade. The
+The file starts and ends on the fade's solid veil colour (the theme's near-black): capture starts at the veil point of
+a transition into Closest, and stops at the veil point of the last transition back to it. So the loop point falls inside a fade and needs no crossfade. The
 emergency is added to the scene from the moment the fade to Alert starts; no screen before Alert shows it, and capture
-stops at the fade's black point, so it is never cleared.
+stops at the fade's veil point, so it is never cleared.
 
 ## 4. Encoding
 
@@ -120,7 +120,7 @@ Copy: under "Seven screens, two themes", add that Map and Board run ten times fa
 existing "straight from the firmware's renderer" holds.
 
 The hero's `width`/`height` and the grid's stay as they are, so nothing shifts when a video appears. The hero's still
-stays `closest-cinematic.png`. Its tour starts from black, a 0.2 s dip the first time.
+stays `closest-cinematic.png`. Its tour starts from the veil, a 0.2 s dip the first time.
 
 ## 6. Pages workflow
 
@@ -143,7 +143,7 @@ run; they take well under a minute.
   - the loop closes: the pixels changed between the last and first frame are no more than twice the largest count
     between neighbouring frames in the clip.
 - The Board test also asserts the top row changes during the clip (the sort works).
-- The tour: 820 frames; first and last frames all black; the frame at the middle of each dwell differs from its
+- The tour: 820 frames; first and last frames the same solid colour; the frame at the middle of each dwell differs from its
   neighbour dwells.
 - Goldens and `tools/sim_node_test.mjs` unchanged: `renderDemo` is not edited beyond exposing two helpers.
 - `pio test -e test` and `pio run -e sim`; `tools/previews.sh` locally; the showcase page in the browser pane

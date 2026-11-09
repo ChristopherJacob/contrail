@@ -74,6 +74,19 @@ void test_stats_and_unknown_names_are_refused() {
     TEST_ASSERT_EQUAL(-1, app::renderClip("radar", "nope", none, bufA, bufB, 16));
 }
 
+void test_tour() {
+    Frames f;
+    int n = app::renderTour("cinematic", [&](const uint16_t* px) { f.emplace_back(px, px + 240 * 320); }, bufA, bufB, 16);
+    TEST_ASSERT_EQUAL(820, n);
+    TEST_ASSERT_EQUAL(820, int(f.size()));
+    // Both ends are the fade's solid veil colour, the same one.
+    TEST_ASSERT_EQUAL(0, changed(f.front(), Frame(240 * 320, f.front()[0])));
+    TEST_ASSERT_EQUAL(0, changed(f.back(), f.front()));
+    for (int i = 0; i < 6; ++i)  // the middle of each dwell differs from the next screen's
+        TEST_ASSERT_GREATER_THAN(10000, changed(f[58 + 117 * i], f[58 + 117 * (i + 1)]));
+    TEST_ASSERT_EQUAL(-1, app::renderTour("nope", [](const uint16_t*) {}, bufA, bufB, 16));
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_radar_is_one_turn_and_closes);
@@ -82,5 +95,6 @@ int main(int, char**) {
     RUN_TEST(test_board_rows_re_sort);
     RUN_TEST(test_two_runs_are_identical);
     RUN_TEST(test_stats_and_unknown_names_are_refused);
+    RUN_TEST(test_tour);
     return UNITY_END();
 }
