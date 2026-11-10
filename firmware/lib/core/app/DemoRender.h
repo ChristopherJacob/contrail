@@ -17,7 +17,16 @@ namespace basemap {
 class MapPack;
 }
 
+namespace scr {
+struct Scene;
+}
+
 namespace app {
+
+// The emergency takeover on the scene's first flight; every flight stepped `seconds` back along its track (negative:
+// forward). For the demo frames here and the site's clips (DemoClip.h).
+void addDemoEmergency(scr::Scene& s);
+void backInTime(scr::Scene& s, float seconds);
 
 // False, drawing nothing, when a name is unknown. bufA and bufB hold 240 x stripH pixels each. logos and map may be
 // null (no card); they must outlive the call.

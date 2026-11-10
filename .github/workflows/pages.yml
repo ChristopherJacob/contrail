@@ -35,10 +35,10 @@ jobs:
             ~/.platformio
             ~/.cache/pip
           key: pio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
-      - name: Install PlatformIO, SDL2 and curl
+      - name: Install PlatformIO, SDL2, curl and ffmpeg
         run: |
           pip install platformio==6.2.0 -r tools/requirements.txt
-          sudo apt-get update && sudo apt-get install -y libsdl2-dev libcurl4-openssl-dev
+          sudo apt-get update && sudo apt-get install -y libsdl2-dev libcurl4-openssl-dev ffmpeg
       - uses: mymindstorm/setup-emsdk@v16
         with:
           version: 7.0.0
@@ -48,6 +48,8 @@ jobs:
         run: pio run -e sim
       - name: Screenshots
         run: tools/screenshots.sh firmware/.pio/build/sim/program site/shots
+      - name: Animated previews
+        run: tools/previews.sh firmware/.pio/build/sim/program site/shots
       # The map sources (about 106 MB) are kept a month: OurAirports and GeoNames change daily, Natural Earth is
       # pinned. A new month or a changed SOURCES table downloads them again.
       - name: Month and sources

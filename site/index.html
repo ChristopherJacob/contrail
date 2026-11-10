@@ -36,10 +36,11 @@
           <a class="btn ghost" href="sim.html">Try it in your browser</a>
           <a class="btn ghost" href="https://github.com/ChristopherJacob/contrail">Source on GitHub</a>
         </div>
+        <button class="motion" type="button" data-motion hidden>Pause animation</button>
       </div>
       <div class="device">
-        <img src="shots/closest-cinematic.png" width="360" height="480"
-             alt="Closest Flight screen: United 53 from Zurich to Washington Dulles, 34,000 ft, 2.4 nm away">
+        <span class="clip"><img data-clip="shots/tour.mp4" src="shots/closest-cinematic.png" width="360" height="480"
+             alt="Closest Flight screen: United 53 from Zurich to Washington Dulles, 34,000 ft, 2.4 nm away"></span>
       </div>
     </div>
   </section>
@@ -49,42 +50,43 @@
       <h2>Seven screens, two themes</h2>
       <p class="muted">Each screen in Cinematic Sky (left) and Bold Editorial (right), straight from the
         firmware's renderer. Contrail picks the screen from what is happening, cycles them, or stays put; a tap
-        moves between them.</p>
+        moves between them. The Live Map and Board clips run ten times faster than life.</p>
+      <p><button class="motion" type="button" data-motion hidden>Pause animation</button></p>
       <div class="shots">
         <figure class="shot">
           <div class="pair">
-            <div><img src="shots/closest-cinematic.png" width="240" height="320" loading="lazy" alt="Closest Flight, Cinematic Sky theme"><div class="theme">Cinematic Sky</div></div>
-            <div><img src="shots/closest-editorial.png" width="240" height="320" loading="lazy" alt="Closest Flight, Bold Editorial theme"><div class="theme">Bold Editorial</div></div>
+            <div><span class="clip"><img data-clip="shots/closest-cinematic.mp4" src="shots/closest-cinematic.png" width="240" height="320" loading="lazy" alt="Closest Flight, Cinematic Sky theme"></span><div class="theme">Cinematic Sky</div></div>
+            <div><span class="clip"><img data-clip="shots/closest-editorial.mp4" src="shots/closest-editorial.png" width="240" height="320" loading="lazy" alt="Closest Flight, Bold Editorial theme"></span><div class="theme">Bold Editorial</div></div>
           </div>
           <figcaption><b>Closest Flight</b>The nearest plane: airline, aircraft, route and how far along it
             is, altitude, speed and where to look.</figcaption>
         </figure>
         <figure class="shot">
           <div class="pair">
-            <div><img src="shots/radar-cinematic.png" width="240" height="320" loading="lazy" alt="Radar, Cinematic Sky theme"><div class="theme">Cinematic Sky</div></div>
-            <div><img src="shots/radar-editorial.png" width="240" height="320" loading="lazy" alt="Radar, Bold Editorial theme"><div class="theme">Bold Editorial</div></div>
+            <div><span class="clip"><img data-clip="shots/radar-cinematic.mp4" src="shots/radar-cinematic.png" width="240" height="320" loading="lazy" alt="Radar, Cinematic Sky theme"></span><div class="theme">Cinematic Sky</div></div>
+            <div><span class="clip"><img data-clip="shots/radar-editorial.mp4" src="shots/radar-editorial.png" width="240" height="320" loading="lazy" alt="Radar, Bold Editorial theme"></span><div class="theme">Bold Editorial</div></div>
           </div>
           <figcaption><b>Radar</b>Every flight in range on a sweeping scope, centred on home.</figcaption>
         </figure>
         <figure class="shot">
           <div class="pair">
-            <div><img src="shots/map-cinematic.png" width="240" height="320" loading="lazy" alt="Live Map, Cinematic Sky theme"><div class="theme">Cinematic Sky</div></div>
-            <div><img src="shots/map-editorial.png" width="240" height="320" loading="lazy" alt="Live Map, Bold Editorial theme"><div class="theme">Bold Editorial</div></div>
+            <div><span class="clip"><img data-clip="shots/map-cinematic.mp4" src="shots/map-cinematic.png" width="240" height="320" loading="lazy" alt="Live Map, Cinematic Sky theme"></span><div class="theme">Cinematic Sky</div></div>
+            <div><span class="clip"><img data-clip="shots/map-editorial.mp4" src="shots/map-editorial.png" width="240" height="320" loading="lazy" alt="Live Map, Bold Editorial theme"></span><div class="theme">Bold Editorial</div></div>
           </div>
           <figcaption><b>Live Map</b>Planes and their trails over coastlines and airports; with a map pack on
             the SD card, roads, rivers and towns too.</figcaption>
         </figure>
         <figure class="shot">
           <div class="pair">
-            <div><img src="shots/board-cinematic.png" width="240" height="320" loading="lazy" alt="Departure Board, Cinematic Sky theme"><div class="theme">Cinematic Sky</div></div>
-            <div><img src="shots/board-editorial.png" width="240" height="320" loading="lazy" alt="Departure Board, Bold Editorial theme"><div class="theme">Bold Editorial</div></div>
+            <div><span class="clip"><img data-clip="shots/board-cinematic.mp4" src="shots/board-cinematic.png" width="240" height="320" loading="lazy" alt="Departure Board, Cinematic Sky theme"></span><div class="theme">Cinematic Sky</div></div>
+            <div><span class="clip"><img data-clip="shots/board-editorial.mp4" src="shots/board-editorial.png" width="240" height="320" loading="lazy" alt="Departure Board, Bold Editorial theme"></span><div class="theme">Bold Editorial</div></div>
           </div>
           <figcaption><b>Board</b>Everything overhead as a departure board, nearest first.</figcaption>
         </figure>
         <figure class="shot">
           <div class="pair">
-            <div><img src="shots/sky-cinematic.png" width="240" height="320" loading="lazy" alt="Sky view at night, Cinematic Sky theme"><div class="theme">Cinematic Sky</div></div>
-            <div><img src="shots/sky-editorial.png" width="240" height="320" loading="lazy" alt="Sky view at night, Bold Editorial theme"><div class="theme">Bold Editorial</div></div>
+            <div><span class="clip"><img data-clip="shots/sky-cinematic.mp4" src="shots/sky-cinematic.png" width="240" height="320" loading="lazy" alt="Sky view at night, Cinematic Sky theme"></span><div class="theme">Cinematic Sky</div></div>
+            <div><span class="clip"><img data-clip="shots/sky-editorial.mp4" src="shots/sky-editorial.png" width="240" height="320" loading="lazy" alt="Sky view at night, Bold Editorial theme"></span><div class="theme">Bold Editorial</div></div>
           </div>
           <figcaption><b>Sky</b>Look up: the sky above you with the sun, moon and stars, and the planes where
             you would see them.</figcaption>
@@ -98,8 +100,8 @@
         </figure>
         <figure class="shot">
           <div class="pair">
-            <div><img src="shots/alert-cinematic.png" width="240" height="320" loading="lazy" alt="Emergency alert, Cinematic Sky theme"><div class="theme">Cinematic Sky</div></div>
-            <div><img src="shots/alert-editorial.png" width="240" height="320" loading="lazy" alt="Emergency alert, Bold Editorial theme"><div class="theme">Bold Editorial</div></div>
+            <div><span class="clip"><img data-clip="shots/alert-cinematic.mp4" src="shots/alert-cinematic.png" width="240" height="320" loading="lazy" alt="Emergency alert, Cinematic Sky theme"></span><div class="theme">Cinematic Sky</div></div>
+            <div><span class="clip"><img data-clip="shots/alert-editorial.mp4" src="shots/alert-editorial.png" width="240" height="320" loading="lazy" alt="Emergency alert, Bold Editorial theme"></span><div class="theme">Bold Editorial</div></div>
           </div>
           <figcaption><b>Alerts</b>Emergency squawks, military aircraft, your watchlist and low passes take
             over the screen, with the board's LED.</figcaption>
@@ -187,5 +189,6 @@
     </p>
   </div>
 </footer>
+<script src="previews.js" defer></script>
 </body>
 </html>

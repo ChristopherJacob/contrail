@@ -3,6 +3,8 @@
 //   program --shot out.ppm [s]   headless: run s seconds of live data at 30 fps, write the frame
 //   program --render <scene> <screen> <theme> out.ppm   headless: a fixed demo scene, no network, no
 //                                settings file, drawn as the golden tests draw it (the site's screenshots)
+//   program --clip <screen> <theme>   headless: a preview loop as raw 240x320 RGB24 frames on stdout (the site's clips)
+//   program --tour               the same for the tour of the screens
 //   CONTRAIL_THEME=editorial program   the same in Bold Editorial
 // Settings persist in ~/.contrail/settings.json (same keys as the device).
 #include <sys/stat.h>
@@ -24,6 +26,7 @@
 #include "alerts/AlertConfig.h"
 #include "alerts/AlertRules.h"
 #include "app/CoreApp.h"
+#include "app/DemoClip.h"
 #include "app/DemoRender.h"
 #include "app/PanelBridge.h"
 #include "assets/LogoStore.h"
@@ -97,10 +100,35 @@ static int renderShot(const char* sceneName, const char* screenName, const char*
     return writePpm(out, display.px) ? 0 : 1;
 }
 
+// --clip and --tour: raw RGB24 frames on stdout, for tools/previews.sh.
+static void writeRgb(const uint16_t* px) {
+    static std::vector<uint8_t> rgb(240 * 320 * 3);
+    for (int i = 0; i < 240 * 320; ++i) {
+        gfx::Rgb c = gfx::unpack565(px[i]);
+        rgb[i * 3] = c.r, rgb[i * 3 + 1] = c.g, rgb[i * 3 + 2] = c.b;
+    }
+    std::fwrite(rgb.data(), 1, rgb.size(), stdout);
+}
+
+static int renderFrames(const char* screen, const char* theme) {
+    setenv("TZ", "UTC0", 1);  // as the goldens: the scenes' clocks are UTC
+    tzset();
+    int n = screen ? app::renderClip(screen, theme, writeRgb, bufA, bufB, kStripH)
+                   : app::renderTour(theme, writeRgb, bufA, bufB, kStripH);
+    if (n < 0) {
+        std::fprintf(stderr, "usage: --clip <closest|radar|sky|alert|map|board> <cinematic|editorial>, or --tour\n");
+        return 2;
+    }
+    return std::fflush(stdout) == 0 ? 0 : 1;
+}
+
 int main(int argc, char** argv) {
     // --render <scene> <screen> <theme> <out.ppm>: a fixed demo scene, no network, for the site's screenshots.
     if (argc >= 2 && std::strcmp(argv[1], "--render") == 0)
         return argc == 6 ? renderShot(argv[2], argv[3], argv[4], argv[5]) : renderShot("", "", "", "");
+    if (argc >= 2 && std::strcmp(argv[1], "--clip") == 0)
+        return argc == 4 ? renderFrames(argv[2], argv[3]) : renderFrames("", "");
+    if (argc == 2 && std::strcmp(argv[1], "--tour") == 0) return renderFrames(nullptr, "cinematic");
     bool shot = argc >= 3 && std::strcmp(argv[1], "--shot") == 0;
     float shotSeconds = argc >= 4 ? float(std::atof(argv[3])) : 8.f;
 
