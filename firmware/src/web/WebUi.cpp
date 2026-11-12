@@ -1,6 +1,7 @@
 #include "WebUi.h"
 
 #include <Arduino.h>
+#include <algorithm>
 #include <ESPmDNS.h>
 #include <Update.h>
 #include <WebServer.h>
@@ -145,6 +146,18 @@ void endUpload(const char* why) {
     if (hooks.updateProgress) hooks.updateProgress(-1);
 }
 
+// The alert chime at the volume the page sends ({"volume": 0..100}), so it can be tried before saving.
+void handleChime() {
+    if (!guarded() || !server->header("Content-Type").startsWith("application/json"))
+        return sendError(403, "missing X-Contrail header or JSON content type");
+    JsonDocument in;
+    if (deserializeJson(in, server->arg("plain")) || !in["volume"].is<int>()) return sendError(400, "bad JSON");
+    if (hooks.chime) hooks.chime(std::max(0, std::min(100, in["volume"].as<int>())));
+    JsonDocument out;
+    out["ok"] = true;
+    sendJson(200, out);
+}
+
 void handleUploadChunk() {
     HTTPUpload& up = server->upload();
     switch (up.status) {
@@ -227,6 +240,7 @@ void start(svc::Settings& s, const Hooks& h) {
     server->on("/api/schema", HTTP_GET, handleSchema);
     server->on("/api/settings", HTTP_GET, handleGetSettings);
     server->on("/api/settings", HTTP_POST, handlePostSettings);
+    server->on("/api/chime", HTTP_POST, handleChime);
     server->on("/api/update", HTTP_POST, handleUploadDone, handleUploadChunk);
     server->onNotFound([] { server->send(404, "text/plain", "not found"); });
     server->begin();

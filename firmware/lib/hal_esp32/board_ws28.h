@@ -11,8 +11,11 @@ constexpr int kTouchSda = 1, kTouchScl = 3, kTouchInt = 4, kTouchRst = 2;
 
 // microSD, wired for SDMMC but used in SPI mode (D3 = CS) on SPI3, so the CYD's SdSpi driver runs unchanged.
 constexpr int kSdSck = 14, kSdMosi = 17, kSdMiso = 16, kSdCs = 21;
+// Audio: a PCM5101 I2S DAC (no I2C setup, no master clock: it locks to BCK) into a small amplifier with a volume
+// knob and two speaker connectors.
+constexpr int kI2sBck = 48, kI2sLrck = 38, kI2sDout = 47;
 // No RGB LED and no light sensor on this board.
-constexpr bool kHasLed = false, kHasLightSensor = false;
+constexpr bool kHasLed = false, kHasLightSensor = false, kHasSpeaker = true;
 
 // Settings' "auto" values. The panel is fixed on this board: ST7789 with inversion on (CircuitPython sends INVON).
 enum class Panel { ILI9341, ST7789 };

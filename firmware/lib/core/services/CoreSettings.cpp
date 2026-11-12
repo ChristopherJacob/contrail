@@ -49,6 +49,8 @@ const SettingDef kCoreSettings[] = {
     {key::kAlertLowNm,  SType::Float,  "alerts",   "Low pass within (nm)",             0.5,  10,     2,   nullptr, nullptr,      0, false},
     {key::kQuietFrom,   SType::String, "alerts",   "Quiet hours from (HH:MM)",         0,    0,      0,   "22:00", nullptr,      0, false},
     {key::kQuietTo,     SType::String, "alerts",   "Quiet hours to (HH:MM)",           0,    0,      0,   "07:00", nullptr,      0, false},
+    {key::kAlertSound,  SType::Bool,   "alerts",   "Chime on alerts",                  0,    1,      1,   nullptr, nullptr,      0, false},
+    {key::kAlertVolume, SType::Int,    "alerts",   "Chime volume (%)",                 0,    100,    60,  nullptr, nullptr,      0, false},
 };
 // clang-format on
 const int kCoreSettingsCount = sizeof(kCoreSettings) / sizeof(kCoreSettings[0]);

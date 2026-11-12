@@ -43,6 +43,8 @@ constexpr const char* kAlertLowFt = "alert_low_ft";
 constexpr const char* kAlertLowNm = "alert_low_nm";
 constexpr const char* kQuietFrom = "quiet_from";
 constexpr const char* kQuietTo = "quiet_to";
+constexpr const char* kAlertSound = "alert_sound";   // the chime when an alert starts (boards with a speaker)
+constexpr const char* kAlertVolume = "alert_volume";
 }  // namespace key
 
 }  // namespace svc
