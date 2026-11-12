@@ -1,0 +1,11 @@
+{
+  "name": "Contrail for Waveshare ESP32-S3-Touch-LCD-2.8",
+  "version": "latest",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32-S3",
+      "parts": [{ "path": "firmware/contrail-ws28-install.bin", "offset": 0 }]
+    }
+  ]
+}

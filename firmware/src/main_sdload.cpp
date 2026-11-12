@@ -22,7 +22,7 @@
 #include <SD.h>
 #include <SPI.h>
 
-#include "board_cyd.h"
+#include "board.h"
 #include "ff.h"
 
 #ifndef SDLOAD_BAUD
@@ -39,7 +39,11 @@ constexpr int kMaxRetries = 8;
 const char* const kDeletable[] = {"/contrail/logos.pak", "/contrail/logos.pak.tmp", "/contrail/map.pak",
                                   "/contrail/map.pak.tmp"};
 
+#if CONFIG_IDF_TARGET_ESP32S3
+SPIClass sdSpi(HSPI);  // SPI3 on the S3 (the Waveshare's card; the panel's SPI2 is unused here)
+#else
 SPIClass sdSpi(VSPI);
+#endif
 bool mounted = false;
 uint8_t buf[kChunk + 4];
 uint32_t crcTable[256];

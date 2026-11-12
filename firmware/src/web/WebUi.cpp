@@ -161,6 +161,11 @@ void handleUploadChunk() {
             // this task (above idle priority) starves IDLE0 and the task watchdog resets the board.
             vTaskDelay(1);
             if (upPct < 0) return;  // already failed: drain the rest
+            // An app image starts with 0xE9 and names its chip at byte 12 (esp_image_header_t.chip_id): refuse one
+            // built for the other board family (the CYD's ESP32 or the Waveshare's ESP32-S3) before writing it.
+            if (upDone == 0 && up.currentSize >= 16 &&
+                (up.buf[0] != 0xE9 || (up.buf[12] | (up.buf[13] << 8)) != CONFIG_IDF_FIRMWARE_CHIP_ID))
+                return endUpload(up.buf[0] != 0xE9 ? "not a firmware image" : "this firmware is for a different board");
             if (Update.write(up.buf, up.currentSize) != up.currentSize) return endUpload(Update.errorString());
             upDone += up.currentSize;
             int p = upSize ? int(uint64_t(upDone) * 100 / upSize) : 0;

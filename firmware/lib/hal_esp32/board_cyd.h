@@ -13,6 +13,7 @@ constexpr int kSdSck = 18, kSdMosi = 23, kSdMiso = 19, kSdCs = 5;
 constexpr int kLedR = 4, kLedG = 16, kLedB = 17;
 // Light-dependent resistor (ADC1)
 constexpr int kLdr = 34;
+constexpr bool kHasLed = true, kHasLightSensor = true;
 
 // Panel defaults per variant; all can be overridden in settings at runtime.
 enum class Panel { ILI9341, ST7789 };

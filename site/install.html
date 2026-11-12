@@ -43,6 +43,12 @@
           <span class="card"><b>CYD 2.8, micro-USB only<span class="tag">untested</span></b><span>One micro-USB
             port, the original board. Not yet tested on this board.</span></span>
         </label>
+        <label class="option">
+          <input type="radio" name="model" value="ws28">
+          <span class="card"><b>Waveshare ESP32-S3-Touch-LCD-2.8</b><span>Waveshare&rsquo;s 2.8&Prime; touch board
+            with one USB-C port, two speaker connectors and a battery connector. Tested on the V2 board; V1 boards
+            should work too.</span></span>
+        </label>
       </fieldset>
 
       <div class="panel">
@@ -61,10 +67,10 @@
 
       <h2>Setup</h2>
       <ol class="steps">
-        <li><b>Plug the display in</b> with a USB data cable (some cables only charge). On the two-port board
+        <li><b>Plug the display in</b> with a USB data cable (some cables only charge). On the two-port CYD
           either port works.</li>
         <li><b>Click Install</b> and pick the board's serial port (often &ldquo;USB Serial&rdquo;, &ldquo;CH340&rdquo; or
-          &ldquo;CP210x&rdquo;). The installer asks whether to erase the device; leave it off to keep your settings
+          &ldquo;CP210x&rdquo;; the Waveshare shows as &ldquo;USB JTAG/serial debug unit&rdquo;). The installer asks whether to erase the device; leave it off to keep your settings
           when updating, or turn it on for a clean start. Installing takes about a minute.</li>
         <li><b>Join the <code>Contrail-setup</code> Wi-Fi network</b> from a phone or computer when the display
           asks. Pick your home Wi-Fi and enter its password.</li>

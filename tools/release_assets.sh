@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Release files from the cyd2usb and cyd_microusb builds (run `pio run -e <env>` for both first):
+# Release files from the cyd2usb, cyd_microusb and ws28 builds (run `pio run -e <env>` for each first):
 #   tools/release_assets.sh <version> <out-dir>          (from the repo root)
 # Per model: contrail-<model>-install.bin (bootloader, partition table, boot_app0 and app merged at offset 0,
 # for ESP Web Tools and a blank board) and contrail-<model>-app.bin (the app alone, for the web update), each
@@ -15,13 +15,25 @@ out="$2"
 py="${PYTHON:-python}"
 mkdir -p "$out"
 
-for model in cyd2usb cyd_microusb; do
+# Per model: chip, bootloader offset, flash mode, frequency and size, as PlatformIO's upload writes them.
+layout() {
+    case "$1" in
+        cyd2usb | cyd_microusb) echo "esp32 0x1000 dio 40m 4MB 40000000L" ;;
+        ws28) echo "esp32s3 0x0000 dio 80m 16MB 80000000L" ;;
+        *) echo "unknown model $1" >&2; exit 1 ;;
+    esac
+}
+
+for model in cyd2usb cyd_microusb ws28; do
+    read -r chip boot_at mode freq size f_flash <<<"$(layout "$model")"
     build="firmware/.pio/build/$model"
-    # The flash layout this script writes, checked against what PlatformIO uploads for this env.
+    # The flash layout this script writes, checked against what PlatformIO uploads for this env. The upload
+    # writes the header as dio whatever the env's flash mode (esptool's --flash_mode dio), so only the
+    # frequency and offsets are checked.
     dump="$(pio run -d firmware -e "$model" -t envdump)"
     flat="$(printf '%s' "$dump" | tr -d ' \n')"
-    for want in "'ESP32_APP_OFFSET':'0x10000'" "'BOARD_FLASH_MODE':'dio'" "'BOARD_F_FLASH':'40000000L'" \
-                "('0x1000','[^']*/$model/bootloader.bin')" "('0x8000','[^']*/$model/partitions.bin')" \
+    for want in "'ESP32_APP_OFFSET':'0x10000'" "'BOARD_F_FLASH':'$f_flash'" \
+                "('$boot_at','[^']*/$model/bootloader.bin')" "('0x8000','[^']*/$model/partitions.bin')" \
                 "('0xe000','[^']*/boot_app0.bin')"; do
         if ! printf '%s' "$flat" | grep -q "$want"; then
             echo "$model: the build's flash layout changed (no $want in envdump); update this script" >&2
@@ -32,9 +44,9 @@ for model in cyd2usb cyd_microusb; do
     for f in "$build/bootloader.bin" "$build/partitions.bin" "$boot_app0" "$build/firmware.bin"; do
         [ -f "$f" ] || { echo "missing $f (build $model first)" >&2; exit 1; }
     done
-    "$py" -m esptool --chip esp32 merge_bin -o "$out/contrail-$model-install.bin" \
-        --flash_mode dio --flash_freq 40m --flash_size 4MB \
-        0x1000 "$build/bootloader.bin" 0x8000 "$build/partitions.bin" 0xe000 "$boot_app0" \
+    "$py" -m esptool --chip "$chip" merge_bin -o "$out/contrail-$model-install.bin" \
+        --flash_mode "$mode" --flash_freq "$freq" --flash_size "$size" \
+        "$boot_at" "$build/bootloader.bin" 0x8000 "$build/partitions.bin" 0xe000 "$boot_app0" \
         0x10000 "$build/firmware.bin"
     cp "$build/firmware.bin" "$out/contrail-$model-app.bin"
     cp "$out/contrail-$model-install.bin" "$out/contrail-$model-$version-install.bin"

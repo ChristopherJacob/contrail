@@ -75,12 +75,18 @@ jobs:
           if body="$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" 2>api.err)"; then
             tag="$(jq -r .tag_name <<<"$body")"
             [ -n "$tag" ] && [ "$tag" != null ] || { echo "latest release has no tag_name" >&2; exit 1; }
-            gh release download "$tag" --repo "$GITHUB_REPOSITORY" --dir site/firmware \
-              --pattern contrail-cyd2usb-install.bin --pattern contrail-cyd_microusb-install.bin --pattern logos.pak
-            ls site/firmware/contrail-cyd2usb-install.bin site/firmware/contrail-cyd_microusb-install.bin
+            # The boards this release has an install image for: a board added since (its manifest is on the
+            # page already) is offered from the release that first has its image (site/install.js).
+            models="$(jq -r '.assets[].name' <<<"$body" | sed -n 's/^contrail-\([a-z0-9_]*\)-install\.bin$/\1/p')"
+            grep -qx cyd2usb <<<"$models" || { echo "latest release has no cyd2usb install image" >&2; exit 1; }
+            patterns=(--pattern logos.pak)
+            for m in $models; do patterns+=(--pattern "contrail-$m-install.bin"); done
+            gh release download "$tag" --repo "$GITHUB_REPOSITORY" --dir site/firmware "${patterns[@]}"
+            for m in $models; do ls "site/firmware/contrail-$m-install.bin"; done
             [ -f site/firmware/logos.pak ] || echo "release has no logos.pak; the SD card page builds the map alone"
             sed -i "s/\"version\": \"latest\"/\"version\": \"${tag#v}\"/" site/manifest-*.json
-            printf '{"tag": "%s"}\n' "$tag" > site/firmware/release.json
+            jq -n --arg tag "$tag" --arg models "$models" '{tag: $tag, models: ($models | split("\n") | map(select(. != "")))}' \
+              > site/firmware/release.json
           elif grep -q '(HTTP 404)' api.err; then
             echo "No release yet"
             printf '{"tag": null}\n' > site/firmware/release.json
