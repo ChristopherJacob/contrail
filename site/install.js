@@ -4,7 +4,8 @@
 // Where the firmware comes from: GitHub's release downloads send no Access-Control-Allow-Origin header, so ESP
 // Web Tools (which fetches the image from this page) can't read them. The Pages workflow therefore copies the
 // latest release's install images into firmware/ beside this page and writes firmware/release.json
-// ({"tag": "v0.2.0", ...}); the manifests name the images by relative path. Should GitHub ever allow
+// ({"tag": "v0.2.0", "models": ["cyd2usb", ...]}); the manifests name the images by relative path. A board whose
+// image that release lacks (added since) is shown but can't be picked until a release has it. Should GitHub ever allow
 // cross-origin reads, point the manifests' "path" at
 // https://github.com/ChristopherJacob/contrail/releases/latest/download/<file> and drop the copy step.
 const RELEASE_INFO = "firmware/release.json";
@@ -33,11 +34,31 @@ async function latestRelease() {
     }
 }
 
+// Boards without an image in the latest release: greyed out, and the checked one moves to the first available.
+function offerOnly(models) {
+    const radios = [...document.querySelectorAll('input[name="model"]')];
+    for (const radio of radios) {
+        if (models.includes(radio.value)) continue;
+        radio.disabled = true;
+        const name = radio.closest("label").querySelector("b");
+        name.append(Object.assign(document.createElement("span"), { className: "tag", textContent: "next release" }));
+    }
+    const checked = radios.find((r) => r.checked);
+    if (checked && checked.disabled) {
+        const first = radios.find((r) => !r.disabled);
+        if (first) {
+            first.checked = true;
+            button.setAttribute("manifest", `manifest-${first.value}.json`);
+        }
+    }
+}
+
 const release = await latestRelease();
 if (!release) {
     status.hidden = true;
     noRelease.hidden = false;
 } else {
+    if (Array.isArray(release.models)) offerOnly(release.models);
     status.classList.add("ok");
     status.replaceChildren("Latest version: ", Object.assign(document.createElement("b"), { textContent: release.tag }));
     if ("serial" in navigator) installer.hidden = false;

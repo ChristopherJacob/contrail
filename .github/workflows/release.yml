@@ -39,12 +39,12 @@ jobs:
         run: pio test -e test
       - name: Build
         working-directory: firmware
-        run: pio run -e cyd2usb && pio run -e cyd_microusb
+        run: pio run -e cyd2usb && pio run -e cyd_microusb && pio run -e ws28
       - name: Assets
         run: tools/release_assets.sh "${GITHUB_REF_NAME#v}" dist
       - name: Check the version inside
         run: |
-          for m in cyd2usb cyd_microusb; do
+          for m in cyd2usb cyd_microusb ws28; do
             strings "dist/contrail-$m-app.bin" | grep -qx "${GITHUB_REF_NAME#v}" || { echo "$m: no version string"; exit 1; }
           done
       - uses: actions/upload-artifact@v4

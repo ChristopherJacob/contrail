@@ -59,7 +59,7 @@ jobs:
           python -I ../tools/build_pack.py --selftest
       - name: Build every environment
         run: |
-          for e in cyd2usb cyd2usb_editorial cyd2usb_soak cyd_microusb sim cyd_sdload cyd_probe cyd_bench cyd_touch; do
+          for e in cyd2usb cyd2usb_editorial cyd2usb_soak cyd_microusb ws28 sim cyd_sdload ws28_sdload cyd_probe cyd_bench cyd_touch; do
             pio run -e "$e"
           done
   pack-builder:

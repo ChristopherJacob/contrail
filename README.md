@@ -2,7 +2,7 @@
 
 Flights overhead, beautifully, on an ESP32 "Cheap Yellow Display" that costs about $15.
 
-Contrail turns an ESP32-2432S028R (CYD 2.8") into a portrait flight tracker with a
+Contrail turns an ESP32-2432S028R (CYD 2.8"), or Waveshare's ESP32-S3-Touch-LCD-2.8, into a portrait flight tracker with a
 cinematic, sun-aware sky, smooth 30 fps animation and live ADS-B data from free
 community feeds, your own receiver, OpenSky or FlightAware. Seven screens (Closest Flight,
 Radar, Live Map, Board, Sky, Stats and alerts) in two themes, set up from a phone, with an
@@ -27,6 +27,7 @@ Pages workflow copies them next to the site's manifests on every release.
 | Part | Notes |
 |---|---|
 | ESP32-2432S028R (CYD 2.8") | Either the original micro-USB board or the CYD2USB (USB-C + micro-USB); about $15 |
+| or Waveshare ESP32-S3-Touch-LCD-2.8 | ESP32-S3 with a capacitive touch screen; tested on the V2 board (CST3530 touch), and V1 (CST328) should work too. It has no RGB LED or light sensor, so alerts flash only the backlight and auto brightness holds a fixed level. Its speakers are not used yet. A printable case is in [hardware/case-waveshare-2.8](hardware/case-waveshare-2.8) |
 | microSD card (optional) | Airline logos (see [SD card and logos](#sd-card-and-logos)) and a detailed Live Map (see [Detailed map](#detailed-map)) |
 
 ## Building from source
@@ -37,6 +38,7 @@ Requires [PlatformIO](https://platformio.org/) (`brew install platformio`).
 cd firmware
 pio run -e cyd2usb -t upload     # CYD2USB (USB-C) boards
 pio run -e cyd_microusb -t upload  # original micro-USB boards
+pio run -e ws28 -t upload        # Waveshare ESP32-S3-Touch-LCD-2.8
 pio device monitor               # serial log, 115200 baud
 ```
 
@@ -164,7 +166,7 @@ git tag -a v0.3.0 -m "Contrail 0.3.0: what changed"
 git push origin v0.3.0
 ```
 
-The release workflow (`.github/workflows/release.yml`) runs the tests, builds `cyd2usb` and `cyd_microusb`
+The release workflow (`.github/workflows/release.yml`) runs the tests, builds `cyd2usb`, `cyd_microusb` and `ws28`
 with the tag's version (local builds say `dev`), makes the install and app images, `logos.pak` and
 `SHA256SUMS`, and publishes a GitHub Release with the tag's message as its notes. It then starts the Pages
 workflow, which rebuilds the site with fresh simulator screenshots and the new install images. A tag with a
@@ -189,7 +191,7 @@ firmware/lib/core        platform-independent: renderer, fonts, model, providers
 firmware/lib/core/assets SD packs: FAT16/32 reader, pack format, logo store
 firmware/lib/core/map    built-in base map; the map pack reader, chart painter and saved chart
 firmware/lib/hal         hardware interfaces
-firmware/lib/hal_esp32   CYD implementation (LovyanGFX, WiFi, NVS, SD over SPI)
+firmware/lib/hal_esp32   ESP32 implementation (LovyanGFX, WiFi, NVS, SD over SPI); board_*.h pick the board
 firmware/lib/hal_native  SDL + libcurl implementation for the simulator
 firmware/lib/hal_wasm    browser simulator build: replayed flights, SD files read by HTTP Range, worker glue
 assets/logos             airline logos for logos.pak (third-party trademarks, see Licence)
@@ -214,7 +216,7 @@ site/                    the GitHub Pages site (showcase, simulator, installer, 
 .github/workflows        CI, release and Pages workflows
 tools/screenshots.sh     simulator screenshots of every screen and theme
 tools/previews.sh        animated previews of the screens for the showcase page
-tools/release_assets.sh  release files from the cyd2usb and cyd_microusb builds
+tools/release_assets.sh  release files from the cyd2usb, cyd_microusb and ws28 builds
 ```
 
 ## Licence

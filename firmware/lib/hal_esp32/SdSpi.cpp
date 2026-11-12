@@ -9,7 +9,13 @@
 namespace hal {
 
 namespace {
+// The CYD's panel is on HSPI, so the card has VSPI. On the ESP32-S3 the panel takes SPI2 (FSPI), and Arduino's HSPI
+// is SPI3.
+#if CONFIG_IDF_TARGET_ESP32S3
+SPIClass sdBus(HSPI);
+#else
 SPIClass sdBus(VSPI);
+#endif
 bool selected = false;
 
 using namespace assets::sd;
