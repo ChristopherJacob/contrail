@@ -51,6 +51,22 @@ bottom-right 206,281), polling, the web update.
 ## Not done yet
 
 - SD card on this board: the code path is the CYD's, on the new pins, but no card has been tried.
-- Speakers (I2S DAC), battery level (GPIO8 ADC) and power latch (GPIO7), RTC and IMU are unused.
+- Battery level (GPIO8 ADC) and power latch (GPIO7), RTC and IMU are unused.
+
+## Alert chime (added after the port)
+
+- `audio/Chime` in lib/core synthesises the chime: two exponentially decaying, nearly pure tones (D5 587 Hz, then
+  B4 494 Hz 1.02 s later; third harmonic -45 dB; 50 ms raised-cosine onset, ~29 ms 10-90 %; amplitude time
+  constant 0.18 s, ~48 dB/s), 2.3 s at 22.05 kHz. Every figure was measured from a royalty-free recording
+  (Pixabay "airplane-chime" by saboteurcomics). A first draft built as a struck bar (bright partials, 4 ms
+  attack, major third) sounded like a doorbell. Each partial is a two-pole resonator: sin and exp for every
+  sample took tens of seconds on the S3.
+- `Esp32Speaker` (hal_esp32) drives the PCM5101 over I2S (BCK 48, LRCK 38, DOUT 47; no MCLK). A task on core
+  0 at idle priority renders the chime into PSRAM once at boot (~2.8 s; at priority 1 it starved IDLE0 and
+  the task watchdog reset the board), then plays it on request. A new request restarts it.
+- The chime plays once per alert, when the alert first lights (not again when the touch panel closes over it),
+  unless it is soft (quiet hours) or `alert_sound` is off; the volume is `alert_volume` (0-100, square law).
+  `/api/info` reports `speaker`, and the web page shows the two settings and a Play chime button
+  (`POST /api/chime {"volume": n}`) only when it is true.
 - V1 boards (CST328 touch): written from ESPHome's driver, not tried on a board.
 - Two boards on one network both answer to `contrail.local`.

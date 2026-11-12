@@ -15,6 +15,7 @@ struct Hooks {
     std::function<void(int percent)> updateProgress;  // 0..100 while an upload runs, -1 when it ends or fails
     std::function<void()> restart;                    // after a reply that needs a restart
     std::function<void()> idle;                       // every pass of the task (saves panel edits)
+    std::function<void(int volume)> chime;            // plays the alert chime at 0..100 (the page's test button)
 };
 
 void start(svc::Settings& settings, const Hooks& hooks);

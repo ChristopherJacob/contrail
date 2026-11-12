@@ -17,6 +17,7 @@
 
 #include "Esp32Hal.h"
 #include "Esp32Net.h"
+#include "Esp32Speaker.h"
 #include "Esp32Storage.h"
 #include "alerts/AlertConfig.h"
 #include "alerts/AlertRules.h"
@@ -58,6 +59,7 @@ hal::Esp32Http http("Contrail/" CONTRAIL_VERSION " (+https://github.com/Christop
 hal::Esp32Backlight backlight;
 hal::Esp32Led led;
 hal::Esp32Light light;
+hal::Esp32Speaker speaker;
 hal::Esp32Display* display = nullptr;
 hal::Esp32Storage sd;
 assets::LogoStore logos;
@@ -310,6 +312,16 @@ void updateLights() {
     if (bl != lastBl) backlight.set(uint8_t(bl)), lastBl = bl;
     if (lo.led.r != lastLed.r || lo.led.g != lastLed.g || lo.led.b != lastLed.b)
         led.set(lo.led.r, lo.led.g, lo.led.b), lastLed = lo.led;
+    // The chime, once per alert as it first shows (not again when the touch panel closes over it), unless it is
+    // soft (quiet hours) or the chime is switched off.
+    static uint32_t chimedStart = 0;
+    static bool chimed = false;
+    const scr::SceneAlert& a = screens->scene().alert;
+    if (lo.on && (!chimed || a.startMs != chimedStart)) {
+        chimed = true, chimedStart = a.startMs;
+        if (!a.soft && core.settings().getBool(svc::key::kAlertSound))
+            speaker.chime(core.settings().getInt(svc::key::kAlertVolume));
+    }
 }
 
 // "alert emerg|watch|mil|low" on the serial port shows a made-up alert (alerts spec §8).
@@ -449,6 +461,7 @@ void setup() {
     led.begin();
     light.begin();
     led.set(0, 0, 0);
+    if (board::kHasSpeaker && !speaker.begin()) svc::logf("[audio] no speaker");
     renderer = new gfx::StripRenderer(*display, bufA, bufB, kStripH);
     renderer->setMicrosSource(microsSource);
 
@@ -515,6 +528,7 @@ void setup() {
         d["ip"] = WiFi.localIP().toString();
         d["uptimeS"] = millis() / 1000;
         d["heap"] = ESP.getFreeHeap();
+        d["speaker"] = speaker.available();
         if (gHaveOffset && !gTzSet) d["autoOffsetS"] = gOffsetS.load();
         JsonObject s = d["sd"].to<JsonObject>();
         s["mounted"] = logos.mounted();
@@ -547,6 +561,7 @@ void setup() {
     };
     // The time first: the render loop's stall check reads it after seeing the percentage.
     hooks.updateProgress = [](int p) { gUpdateSeenMs = millis(), gUpdatePct = p; };
+    hooks.chime = [](int volume) { speaker.chime(volume); };
     hooks.restart = [] { gRestartAtMs = (millis() + 1000) | 1; };  // | 1: never 0
     hooks.idle = [] {
         scr::SettingEdit e;

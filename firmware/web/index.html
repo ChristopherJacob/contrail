@@ -338,6 +338,18 @@ function firmwareCard() {
     drop, prog, status);
 }
 
+// The chime's settings show only on a board with a speaker; the button plays it at the volume on the page.
+const SOUND = new Set(["alert_sound", "alert_volume"]);
+function chimeButton() {
+  const status = el("span", {class: "note"});
+  const play = async () => {
+    status.textContent = "";
+    try { await api("/api/chime", {method: "POST", headers: POST, body: JSON.stringify({volume: Number(current("alert_volume"))})}); }
+    catch (e) { status.textContent = "Couldn't play it: " + e.message; }
+  };
+  return el("div", {}, el("button", {type: "button", onclick: play}, "Play chime"), status);
+}
+
 function render() {
   const main = $("#main"), nav = $("#nav");
   main.textContent = "", nav.textContent = "";
@@ -348,8 +360,10 @@ function render() {
     const h = el("h2", {}, title);
     if (g === "hardware") h.append(el("span", {class: "note"}, "Saving these restarts the device"));
     const grid = el("div", {class: "grid"});
-    for (const d of schema) if (d.group === g && !HIDDEN.has(d.key)) grid.append(control(d));
-    main.append(el("section", {id: g}, h, grid));
+    for (const d of schema) if (d.group === g && !HIDDEN.has(d.key) && (info.speaker || !SOUND.has(d.key))) grid.append(control(d));
+    const sec = el("section", {id: g}, h, grid);
+    if (g === "alerts" && info.speaker) sec.append(chimeButton());
+    main.append(sec);
   }
   nav.append(el("a", {href: "#firmware"}, "Firmware"));
   main.append(firmwareCard());

@@ -27,8 +27,23 @@ Pages workflow copies them next to the site's manifests on every release.
 | Part | Notes |
 |---|---|
 | ESP32-2432S028R (CYD 2.8") | Either the original micro-USB board or the CYD2USB (USB-C + micro-USB); about $15 |
-| or Waveshare ESP32-S3-Touch-LCD-2.8 | ESP32-S3 with a capacitive touch screen; tested on the V2 board (CST3530 touch), and V1 (CST328) should work too. It has no RGB LED or light sensor, so alerts flash only the backlight and auto brightness holds a fixed level. Its speakers are not used yet. A printable case is in [hardware/case-waveshare-2.8](hardware/case-waveshare-2.8) |
+| or Waveshare ESP32-S3-Touch-LCD-2.8 | ESP32-S3 with a capacitive touch screen; tested on the V2 board (CST3530 touch), and V1 (CST328) should work too. It has no RGB LED or light sensor, so alerts flash only the backlight and auto brightness holds a fixed level. With speakers plugged in, alerts play a cabin-style chime (see [Alert chime](#alert-chime)). A printable case is in [hardware/case-waveshare-2.8](hardware/case-waveshare-2.8) |
 | microSD card (optional) | Airline logos (see [SD card and logos](#sd-card-and-logos)) and a detailed Live Map (see [Detailed map](#detailed-map)) |
+
+## Alert chime
+
+On the Waveshare board, with its speakers plugged in, a new alert plays the airliner cabin "ding-dong": D5 then B4
+a second later, two soft, nearly pure tones. It is synthesised by the firmware (`firmware/lib/core/audio/Chime.cpp`);
+its pitches, attack, decay and spacing were measured from a royalty-free recording
+([airplane-chime](https://pixabay.com/sound-effects/airplane-chime-466924/) by saboteurcomics, Pixabay), and no
+audio is copied. It does not play in quiet hours (an emergency always does). The Alerts section of the board's web
+page has "Chime on alerts", "Chime volume (%)" and a Play chime button; the board's volume knob sets the
+amplifier's level on top. To hear it on a computer:
+
+```bash
+c++ -std=c++17 -O2 -I firmware/lib/core tools/chime_wav.cpp firmware/lib/core/audio/Chime.cpp -o chime_wav
+./chime_wav chime.wav
+```
 
 ## Building from source
 
@@ -205,6 +220,7 @@ tools/sd_site.sh         puts the SD card page's map data and Python on the site
 tools/sd_node_test.mjs   the SD card page's build in Pyodide under Node, checked against build_map.py
 tools/fetch_logos.py     one-time download of assets/logos
 tools/sd_upload.py       write a file to the board's SD card over USB (with the cyd_sdload env)
+tools/chime_wav.cpp      the alert chime as a WAV file, from the firmware's own synthesiser
 tools/make_fat_fixtures.sh  rebuild the FAT reader's test disk images (macOS)
 tools/build_wasm.sh      the firmware with emscripten -> contrail.js and contrail.wasm
 tools/record_sky.py      recorded flights over tools/sim_places.json's places for the browser simulator
