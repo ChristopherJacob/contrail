@@ -12,7 +12,8 @@
 //
 // Board figures are from Waveshare's dimension drawing (2D PDF and product page), not a board in hand: print the
 // front and back first and check the fit. The figures to check are in the first block below.
-// Hardware: 4 x M2.5 x 8 screws (self-tapping into plastic), 2 short pieces of 1.75 mm filament as hood pins, glue.
+// Hardware: 8 x M2.5 x 8 screws (4 self-tapping into the shell's corners, 4 into the board's brass standoffs),
+// 2 short pieces of 1.75 mm filament as hood pins, glue.
 
 part = "assembly";
 $fn = 48;
@@ -31,6 +32,8 @@ hole_dx = 41.0;       // mounting holes, centre to centre
 hole_dy = 60.0;
 usb_z = 7.6;          // glass front to the USB-C socket's centre
 side_slot = [8, 47];  // BOOT / RESET / PWR buttons and the TF slot: mm below the PCB's top edge, right side (front view)
+standoff_h = 4.0;     // the brass standoffs pressed into the board's back, M2.5 threaded: height above the PCB
+standoff_d = 4.6;     //   and their outside diameter (both judged from a photo: measure and set these)
 spk_w = 30.6;         // 2030 oval speaker, with clearance
 spk_h = 20.6;
 spk_t = 6.0;
@@ -103,15 +106,23 @@ module front() {
 }
 
 module back() {
-    // modelled outside face at z = 0; the posts reach the PCB's back face
-    post = cav - pcb_back - 0.2;
+    // Modelled outside face at z = 0. Its four posts end on the board's brass standoffs, each in a shallow socket
+    // that centres it, and an M2.5 x 8 screw through each post into the standoff holds the board to the cover.
+    // The screw heads sit deep in the posts, so the same 8 mm screws as the corners reach 2 mm of thread.
+    post = cav - pcb_back - standoff_h;  // cover's inner face to the standoffs' tips
+    socket = 1.0;                         // how far each post's socket reaches down over its standoff
+    post_d = 7.5;
+    head_d = 5.2;
+    head_depth = cover_t + post - 6;  // leaves 6 mm of an 8 mm screw to reach the standoff, 2 mm into it
     difference() {
         union() {
             linear_extrude(cover_t) rounded_rect(pw, ph, 4);
-            for (h = holes) translate([h[0], h[1], 0]) {
-                cylinder(d = 5.5, h = cover_t + post);
-                cylinder(d = 2.1, h = cover_t + post + 1.2);   // locates in the board's hole
-            }
+            for (h = holes) translate([h[0], h[1], 0]) cylinder(d = post_d, h = cover_t + post + socket);
+        }
+        for (h = holes) translate([h[0], h[1], 0]) {
+            translate([0, 0, -0.01]) cylinder(d = 2.9, h = cover_t + post + socket + 0.02);   // M2.5 clearance
+            translate([0, 0, -0.01]) cylinder(d = head_d, h = head_depth + 0.01);             // screw head
+            translate([0, 0, cover_t + post]) cylinder(d = standoff_d + 0.4, h = socket + 0.01);  // socket
         }
         for (sx = [-1, 1], sy = [-1, 1]) translate([sx * boss[0], sy * boss[1], 0]) {
             translate([0, 0, -0.01]) cylinder(d = 2.9, h = cover_t + 0.02);
@@ -189,10 +200,16 @@ module base() {
             r = spk_h / 2;
             for (row = [-2:2]) let(dz = row * 3.6, half = (spk_w - spk_h) / 2 + sqrt(r * r - dz * dz) - 2.5)
                 translate([0, -0.01, spk_z + dz]) rotate([-90, 0, 0]) linear_extrude(2.1) stadium(2 * half, 1.8);
-            // lead to the shaft
-            translate([s > 0 ? 0 : -spk_x, 4, -0.01]) cube([spk_x, 4, 3.5]);
         }
-        translate([-3.5, 4, -0.01]) cube([7, 12, 3.5]);
+        // speaker leads: a groove under each pocket's inner end, along the front, into the cable groove at the centre
+        lead_w = 5;      // a 2-pin JST lead lies flat in it
+        lead_d = 4;
+        lead_y = 2.5;    // just behind the front wall, level with the pockets
+        for (s = [-1, 1]) {
+            inner = spk_x - spk_w / 2 + 2;   // 2 mm inside the pocket, so the groove opens into it
+            translate([s > 0 ? 0 : -inner, lead_y, -0.01]) cube([inner, lead_w, lead_d]);
+        }
+        translate([-3.5, lead_y, -0.01]) cube([7, 16 - lead_y, lead_d]);
         // gauges
         for (s = [-1, 1]) translate([s * 9.5, -0.01, spk_z]) rotate([-90, 0, 0]) linear_extrude(0.8) gauge(15);
         // console look: chamfer the front top edge

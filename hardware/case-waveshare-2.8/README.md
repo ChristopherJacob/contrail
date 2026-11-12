@@ -22,7 +22,7 @@ PLA or PETG, 0.2 mm layers, 3 walls, 15% infill, no supports. The holes in the w
 
 ## You'll also need
 
-- 4 × M2.5 × 8 mm screws: these self-tap into the panel's corners and hold the back cover on.
+- 8 × M2.5 × 8 mm screws. Four self-tap into the panel's corners to hold the back cover on. The other four go through the cover's posts into the brass standoffs on the board's back.
 - 2 short pieces of 1.75 mm filament, to pin the hood on, and some glue for it.
 - Hot glue or tape, to keep the speakers in their pockets.
 - A USB-C cable. A right-angle plug is the easiest fit.
@@ -31,10 +31,11 @@ PLA or PETG, 0.2 mm layers, 3 walls, 15% infill, no supports. The holes in the w
 
 1. Drop the board into the front shell, glass first. The wide black border on the glass goes at the bottom (the USB-C end).
 2. Plug in the speaker lead and run it, with the USB-C cable, out of the slot in the shell's bottom.
-3. Screw on the back cover. Its four posts press the board against the bezel, and their pins locate in the board's mounting holes.
+3. Put the back cover on: each of its four posts seats on one of the board's brass standoffs. Screw the cover to the
+   standoffs through the posts, then into the panel's corners.
 4. Glue the hood onto the shell's top, using the filament pins to line it up.
 5. Push the speakers into their pockets from under the console, grilles forward, and glue them in. Lay their wires in
-   the grooves underneath.
+   the grooves underneath: each runs along the front edge into the centre groove.
 6. Feed the cables down the console's shaft and out of the groove at the back, then press the panel into its socket.
 
 ## Check before printing it all
@@ -44,6 +45,9 @@ PLA or PETG, 0.2 mm layers, 3 walls, 15% infill, no supports. The holes in the w
   right-hand side as you face the screen. That's worked out from the drawing, so check it on the board.
 - **Speakers:** `spk_w`, `spk_h` and `spk_t`, measured on the speakers themselves.
 - **Cover depth:** `cav`, the depth behind the board. It has to clear the plugs on the board's back.
+- **Standoffs:** `standoff_h` and `standoff_d`, the height above the PCB and the width of the brass standoffs on
+  the board's back. They're set at 4 mm and 4.6 mm, judged from a photo. If the cover sits proud of the shell,
+  they're taller than that; if the board can move, shorter.
 
 ## Rebuilding the STLs
 
